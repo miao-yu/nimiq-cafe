@@ -1,0 +1,40 @@
+{
+  "name": "nimiq.cafe",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "server": "PORT=5970 node --watch bin/www",
+    "client": "cd ../client && npm run dev",
+    "start": "concurrently --kill-others-on-fail \" npm run server\" \" npm run client\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/winston": "^2.4.4",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@nimiq/core": "^2.0.5",
+    "@nimiq/hub-api": "^1.10.0",
+    "axios": "^1.7.7",
+    "body-parser": "^1.20.3",
+    "chart.js": "^4.4.7",
+    "cheerio": "^1.0.0",
+    "cookie-parser": "~1.4.3",
+    "cors": "^2.8.5",
+    "debug": "~2.6.9",
+    "dotenv": "^16.4.7",
+    "express": "~4.16.0",
+    "http-errors": "~1.6.2",
+    "ioredis": "^5.4.2",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "~1.9.0",
+    "mysql": "^2.18.1",
+    "mysql2": "^3.11.5",
+    "resend": "^6.18.1",
+    "twitter-api-v2": "^1.18.2",
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^5.0.0",
+    "ws": "^8.18.0"
+  }
+}

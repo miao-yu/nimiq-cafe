@@ -1,0 +1,219 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+
+var app = require('../app');
+var debug = require('debug')('nimiq.cafe:server');
+var fs = require('fs');
+const WebSocket = require('ws');
+
+const WEBSOCKET_URL = 'ws://127.0.0.1:8648/ws';
+
+// The node restarts (upgrades, crashes) drop this connection. Without these the
+// relay stays up but silently forwards nothing until the process is restarted.
+const RECONNECT_DELAY_MIN = 1000;
+const RECONNECT_DELAY_MAX = 30000;
+// The node produces a block every ~1s, so a long silence means a dead socket
+// that never emitted 'close' (half-open TCP). Reconnect rather than wait forever.
+const SILENCE_TIMEOUT = 60000;
+
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port = normalizePort(process.env.PORT || '5960');
+app.set('port', port);
+
+/**
+ * Create HTTPS server.
+ */
+
+var https = require('https');
+
+var options = {
+    key: fs.readFileSync('/etc/letsencrypt/live/nimiq.cafe/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/nimiq.cafe/cert.pem'),
+    ca: fs.readFileSync('/etc/letsencrypt/live/nimiq.cafe/chain.pem')
+};
+
+var server = https.createServer(options, app);
+
+const wss = new WebSocket.Server({ server });
+
+var upstreamWs = null;
+var reconnectDelay = RECONNECT_DELAY_MIN;
+var reconnectTimer = null;
+var silenceTimer = null;
+
+function scheduleReconnect() {
+  if (reconnectTimer) return;
+
+  console.log(`Reconnecting to upstream WebSocket in ${reconnectDelay}ms`);
+
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectUpstream();
+  }, reconnectDelay);
+
+  reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_DELAY_MAX);
+}
+
+function resetSilenceTimer() {
+  clearTimeout(silenceTimer);
+
+  silenceTimer = setTimeout(() => {
+    console.error(`No upstream message for ${SILENCE_TIMEOUT}ms, reconnecting`);
+    // 'close' fires from terminate() and triggers the reconnect.
+    if (upstreamWs) upstreamWs.terminate();
+  }, SILENCE_TIMEOUT);
+}
+
+function connectUpstream() {
+  upstreamWs = new WebSocket(WEBSOCKET_URL);
+
+  upstreamWs.on('open', () => {
+    console.log('Connected to upstream WebSocket');
+
+    reconnectDelay = RECONNECT_DELAY_MIN;
+
+    const subscribeMessage = {
+      method: 'subscribeForHeadBlock',
+      params: [true],
+      id: 1,
+      jsonrpc: '2.0',
+    };
+
+    upstreamWs.send(JSON.stringify(subscribeMessage));
+
+    resetSilenceTimer();
+  });
+
+  upstreamWs.on('message', (message) => {
+    resetSilenceTimer();
+
+    const upstreamData = JSON.parse(message.toString());
+
+    if (upstreamData.params) {
+      const block = upstreamData.params.result.data;
+
+      const formattedData = {
+        event: 'newBlock',
+        data: {
+          epoch: block.epoch,
+          batch: block.batch,
+          blockNumber: block.number,
+          type: block.type,
+          producer: block.producer?.validator || null,
+          size: block.size,
+          transactions: block.transactions.map((tx) => ({
+            hash: tx.hash,
+            from: tx.from,
+            to: tx.to,
+            value: tx.value,
+            fee: tx.fee,
+            timestamp: tx.timestamp,
+          })),
+          timestamp: block.timestamp,
+        },
+      };
+
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify(formattedData));
+        }
+      });
+    }
+  });
+
+  upstreamWs.on('error', (error) => {
+    // 'close' always follows 'error', so reconnecting is left to the close handler.
+    console.error(`Upstream WebSocket error: ${error.message}`);
+  });
+
+  upstreamWs.on('close', (code, reason) => {
+    clearTimeout(silenceTimer);
+    console.error(`Upstream WebSocket closed. Code: ${code}, Reason: ${reason}`);
+    scheduleReconnect();
+  });
+}
+
+connectUpstream();
+
+wss.on('connection', (ws) => {
+  console.log('New WebSocket connection from frontend');
+
+  ws.on('close', () => {
+    console.log('Frontend WebSocket connection closed');
+  });
+});
+
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  var bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+}

@@ -1,0 +1,112 @@
+{
+  "main": [
+    {
+      "name": "Staking",
+      "link": "/staking",
+      "linkIcon": "fa fa-seedling",
+      "subMenu": []
+    },
+    {
+      "name": "FAQ",
+      "link": "/faq",
+      "linkIcon": "fa-solid fa-circle-question",
+      "subMenu": []
+    },
+    {
+      "name": "Calculator",
+      "link": "/calculator",
+      "linkIcon": "fa-solid fa-calculator",
+      "subMenu": []
+    },
+    {
+      "name": "Converter",
+      "link": "/converter",
+      "linkIcon": "fa-solid fa-money-bill-transfer",
+      "subMenu": []
+    },
+    {
+      "name": "Blockchain Stats",
+      "link": "",
+      "linkIcon": "fa-solid fa-chart-simple",
+      "subMenu": [
+        {
+          "name": "Transactions",
+          "link": "/transactions"
+        },
+        {
+          "name": "Staking Info",
+          "link": "/staking-info"
+        },
+        {
+          "name": "Total Supply",
+          "link": "/supply"
+        },
+        {
+          "name": "Validators",
+          "link": "/validators"
+        }
+      ]
+    },
+    {
+      "name": "Explorer",
+      "link": "",
+      "linkIcon": "fa-solid fa-earth-asia",
+      "subMenu": [
+        {
+          "name": "Nimiq.Watch",
+          "link": "https://nimiq.watch/"
+        },
+        {
+          "name": "NimiqHub.com",
+          "link": "https://www.nimiqhub.com/"
+        }
+      ]
+    },
+    {
+      "name": "Nimiq",
+      "link": "",
+      "linkIcon": "fa-solid fa-hexagon-nodes-bolt",
+      "subMenu": [
+        {
+          "name": "Website",
+          "link": "https://www.nimiq.com/"
+        },
+        {
+          "name": "Wallet",
+          "link": "https://www.nimiq.com/wallet/"
+        },
+        {
+          "name": "News",
+          "link": "https://www.nimiq.com/blog/"
+        },
+        {
+          "name": "Developer Center",
+          "link": "https://www.nimiq.com/developers/"
+        },
+        {
+          "name": "Telegram",
+          "link": "https://t.me/Nimiq"
+        },
+        {
+          "name": "Twitter",
+          "link": "https://x.com/nimiq"
+        }
+      ]
+    },
+    {
+      "name": "Contact us",
+      "link": "",
+      "linkIcon": "fa-solid fa-comments",
+      "subMenu": [
+        {
+          "name": "Telegram",
+          "link": "https://t.me/+K76FZSRFP0hmZmYx"
+        },
+        {
+          "name": "Discord",
+          "link": "https://discord.gg/vHKAaM62"
+        }
+      ]
+    }
+  ]
+}

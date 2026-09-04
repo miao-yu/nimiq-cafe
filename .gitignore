@@ -1,0 +1,8 @@
+# Deploy target (host to ssh into). See .deploy.env.example.
+.deploy.env
+
+# Claude Code's local settings -- records host names and local paths.
+.claude/settings.local.json
+
+# OS
+.DS_Store

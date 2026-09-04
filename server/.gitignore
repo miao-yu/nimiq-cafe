@@ -1,0 +1,65 @@
+# compiled output
+/node_modules
+.env
+
+# tsc output (compiled in place next to the .ts sources)
+logger.js
+emailer.js
+scripts/checkValidatorStatus.js
+scripts/getBlockchainInfo.js
+scripts/getFastspotInfo.js
+scripts/getSocialmediaInfo.js
+scripts/getStakingInfo.js
+scripts/storeBlockchainInfo.js
+scripts/storeLatestBlockchainInfo.js
+scripts/storeLatestFastspotInfo.js
+scripts/storeLatestSocialmediaInfo.js
+scripts/storeStakingInfo.js
+scripts/storeValidators.js
+
+# generated data -- written on the server by cron/pm2, must not be in git or
+# every deploy conflicts with live data (json/currency.json, json/menu.json and
+# json/supply-curve.json are static seed data and stay tracked)
+json/active-accounts.json
+json/address-book.json
+json/blockchain-info.json
+json/exchange-rates.json
+json/fastspot-info.json
+json/future-supply.json
+json/pools.json
+json/price.json
+json/socialmedia-info.json
+json/staking-info.json
+json/validator-alert-state.json
+json/validators.json
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+
+# Tests
+/coverage
+/.nyc_output
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json

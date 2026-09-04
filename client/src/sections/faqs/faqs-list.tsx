@@ -1,0 +1,102 @@
+import type { BoxProps } from '@mui/material/Box';
+
+import Box from '@mui/material/Box';
+import Accordion from '@mui/material/Accordion';
+import Typography from '@mui/material/Typography';
+import AccordionSummary from '@mui/material/AccordionSummary';
+import AccordionDetails from '@mui/material/AccordionDetails';
+
+import { Iconify } from 'src/components/iconify';
+
+// ----------------------------------------------------------------------
+
+export function FaqsList({ sx, ...other }: BoxProps) {
+  const faqs = [
+    {
+      id: '1',
+      heading: 'Why should I choose your staking pool?',
+      detail: 'Experience 0% pool fees until the end of January 2025, lightning-fast payouts every minute, and a minimal pay threshold of just 10 $NIM. Our pool is reliable, efficient, and centered around the community. Stake with us to maximize your rewards and benefit from tools that provide deep insights into the Nimiq blockchain. 🚀 We\'re more than just a staking pool – we\'re your partner in exploring the Nimiq blockchain ecosystem!'
+    },
+    {
+      id: '2',
+      heading: 'How do I start staking?',
+      detail: 'Head to the Nimiq Wallet, choose our pool from the validator list, and stake your $NIM. Once confirmed, your stake activates immediately, and rewards will start rolling in, automatically restaking to your account.'
+    },
+    {
+      id: '3',
+      heading: 'What is the minimum amount required to stake?',
+      detail: 'A minimum of 100 $NIM is required to start staking with our pool.'
+    },
+    {
+      id: '4',
+      heading: 'What fees does the pool charge?',
+      detail: 'We charge a small fee on rewards to cover operational costs and maintain high-quality service and support.'
+    },
+    {
+      id: '5',
+      heading: 'How often are rewards distributed?',
+      detail: 'Rewards are calculated and distributed every 15 minutes based on the total staked amount and your contribution.'
+    },
+    {
+      id: '6',
+      heading: 'How are rewards calculated?',
+      detail: 'Rewards are proportional to your contribution to the total staked amount during each epoch. The more $NIM you stake, the greater your share of the rewards.'
+    },
+    {
+      id: '7',
+      heading: 'Why are my rewards paid out instead of being restaked?',
+      detail: 'If you’ve recently unstaked, rewards are paid out instead of being restaked to prevent resetting your unstake countdown. This ensures you won’t have to wait an additional 12 hours to withdraw your funds.'
+    },
+    {
+      id: '8',
+      heading: 'Is my stake secure?',
+      detail: 'Yes, your funds remain under your control at all times and are securely stored in the Nimiq Staking Contract. If the validator goes offline, you can unstake and retrieve your funds without issue. The only risk is missing rewards for one epoch.'
+    },
+    {
+      id: '9',
+      heading: 'What should I do if I can’t unstake?',
+      detail: 'If you experience issues unstaking, try switching to another browser or using a private browsing session. If the problem persists, reach out to Nimiq support via Discord or Telegram for assistance.'
+    },
+    {
+      id: '10',
+      heading: 'What happens if I miss an epoch?',
+      detail: 'If you miss an epoch, your staked amount will not participate in that cycle but will automatically resume in the next epoch once active.'
+    },
+    {
+      id: '11',
+      heading: 'How do I report a problem with rewards?',
+      detail: 'If you believe your rewards are incorrect, whether too high, too low, or unusual, please contact us immediately. Errors, though rare, can happen. Rest assured, we won’t ask you to return excess rewards.'
+    },
+    {
+      id: '12',
+      heading: 'How can I request a new feature?',
+      detail: 'We value your feedback! Share your ideas via Telegram group or in the #nimiqcafe-pool channel on Discord. Your suggestions help us improve.'
+    },
+    {
+      id: '13',
+      heading: 'How do I contact support?',
+      detail: 'For assistance, explore the options under the "Contact Us" menu. We\'re ready to help with any questions or issues related to staking.'
+    },
+    {
+      id: '14',
+      heading: 'What happens if the validator goes offline?',
+      detail: 'If the validator goes offline, your staked $NIM remains safe in the Nimiq Staking Contract. You won’t earn rewards for that epoch, but you can unstake your funds anytime without losing your principal.'
+    }
+  ];
+
+  return (
+    <Box sx={sx} {...other}>
+      {faqs.map((accordion) => (
+        <Accordion key={accordion.id}>
+          <AccordionSummary expandIcon={<Iconify icon="eva:arrow-ios-downward-fill" />}>
+            <Typography variant="h4">{accordion.heading}</Typography>
+          </AccordionSummary>
+
+          <AccordionDetails>
+            <Typography sx={{ fontSize: '1.05rem' }}>{accordion.detail}</Typography>
+          </AccordionDetails>
+        </Accordion>
+      ))}
+    </Box>
+  );
+}
