@@ -36,7 +36,12 @@ export const fetcher = async (args: string | [string, AxiosRequestConfig]) => {
 // ----------------------------------------------------------------------
 
 export const endpoints = {
-  auth: { me: '/api/auth/me', signIn: '/api/auth/sign-in', signUp: '/api/auth/sign-up' },
+  auth: {
+    me: '/api/auth/me',
+    challenge: '/api/auth/challenge',
+    signIn: '/api/auth/sign-in',
+    signUp: '/api/auth/sign-up',
+  },
   blockchain: {
     stakedInfo: '/api/stakedinfo',
     electedValidators: '/api/elected-validators',

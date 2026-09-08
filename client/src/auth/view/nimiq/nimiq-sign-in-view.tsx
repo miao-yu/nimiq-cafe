@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import HubApi from '@nimiq/hub-api';
+import { useState, useEffect } from 'react';
 
 import Box from '@mui/material/Box';
 import Alert from '@mui/material/Alert';
 import LoadingButton from '@mui/lab/LoadingButton';
 
+import { warmSigner } from 'src/lib/nimiq-provider';
 import { signInWithAddress } from 'src/auth/context/nimiq';
 
 import { useAuthContext } from '../../hooks';
@@ -22,15 +22,18 @@ export function NimiqSignInView() {
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Deciding between Nimiq Pay and the Hub means waiting to see whether the
+  // host injects a provider. Start that on mount so the wait happens while the
+  // page is being read rather than after the button is pressed.
+  useEffect(() => {
+    warmSigner();
+  }, []);
+
   const handleSignIn = async () => {
     setLoading(true);
     try {
-      const hubApi = new HubApi('https://hub.nimiq.com');
-      const options = { appName: 'NimiqCafe', message: 'Welcome to NimiqCafe!\n\nSign in to continue. This verification process is free and doesn\'t involve any blockchain transactions or access to your sensitive information like passwords or private keys.' };
-
-      const signedMessage = await hubApi.signMessage(options);
-
-      await signInWithAddress({ message: options.message, signedMessage });
+      // The message is issued by the server, so there is nothing to pass here.
+      await signInWithAddress();
       await checkUserSession?.();
 
       // router.refresh();

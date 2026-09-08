@@ -20,6 +20,7 @@ var mysql = require('mysql2/promise');
 const path = require('path');
 var currencies = require(__dirname + '/json/currency.json');
 const seo = require('./seo');
+const { issueChallenge, consumeChallenge } = require('./challenge');
 
 var addressBook = require(__dirname + '/json/address-book.json');
 
@@ -92,18 +93,36 @@ app.use(cors({
     credentials: true
   }));
 
-app.post('/api/auth/sign-in', async (req, res) => {
-    const { message, base64Signature, base64SignerPublicKey, signer } = req.body;
+// Step one of sign-in: hand out a random, single-use message to sign. The
+// client never chooses what gets signed, so a signature cannot be prepared in
+// advance or replayed.
+app.post('/api/auth/challenge', (req, res) => {
+    try {
+        const { code, message, expiresAt } = issueChallenge();
+        res.status(200).json({ code, message, expiresAt });
+    } catch (error) {
+        console.error(error);
+        res.status(503).json({ message: 'Could not issue a challenge. Try again.' });
+    }
+});
 
-    if (typeof message !== 'string' || typeof base64Signature !== 'string'
-        || typeof base64SignerPublicKey !== 'string' || typeof signer !== 'string') {
+// Step two: the signature over that message. The message is looked up by code
+// rather than taken from the request, so the only thing that can be signed
+// here is something this server issued in the last five minutes.
+app.post('/api/auth/sign-in', async (req, res) => {
+    const { code, publicKey, signature, signer } = req.body;
+
+    if (typeof code !== 'string' || typeof publicKey !== 'string'
+        || typeof signature !== 'string' || typeof signer !== 'string') {
       return res.status(400).json({ message: 'Invalid credentials.' });
     }
 
-    const signature = Uint8Array.from(Buffer.from(base64Signature, 'base64'));
-    const signerPublicKey = Uint8Array.from(Buffer.from(base64SignerPublicKey, 'base64'));
+    const challenge = consumeChallenge(code);
+    if (!challenge) {
+      return res.status(400).json({ message: 'That sign-in request expired or was already used. Try again.' });
+    }
 
-    const address = verifySignedMessage(signerPublicKey, signature, message, signer);
+    const address = verifySignedMessage(publicKey, signature, challenge.message, signer);
     if (!address) {
       return res.status(400).json({ message: 'Invalid credentials.' });
     }
@@ -1765,10 +1784,12 @@ function normalizeAddress(address) {
  * SHA-256(MSG_PREFIX + byteLength + message). byteLength, not String.length --
  * the two agree only while the message stays ASCII.
  */
-function verifySignedMessage(signerPublicKey, signature, message, claimedAddress) {
+function verifySignedMessage(publicKeyHex, signatureHex, message, claimedAddress) {
     try {
-        const deserializedSignature = Nimiq.Signature.deserialize(signature);
-        const publicKey = new Nimiq.PublicKey(signerPublicKey);
+        // Hex, because that is what the Mini App provider returns natively and
+        // what the Hub path converts to -- one representation, no guessing.
+        const publicKey = Nimiq.PublicKey.fromHex(publicKeyHex);
+        const deserializedSignature = Nimiq.Signature.fromHex(signatureHex);
 
         const data = HubApi.MSG_PREFIX
                     + Buffer.byteLength(message, 'utf8')
