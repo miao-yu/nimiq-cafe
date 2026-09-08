@@ -20,6 +20,7 @@ var mysql = require('mysql2/promise');
 const path = require('path');
 var currencies = require(__dirname + '/json/currency.json');
 const seo = require('./seo');
+const miniappProbe = require('./miniapp-probe');
 
 var addressBook = require(__dirname + '/json/address-book.json');
 
@@ -1043,6 +1044,16 @@ app.get('/robots.txt', (req, res) => {
 
 app.get('/sitemap.xml', (req, res) => {
     res.type('application/xml').send(seo.buildSitemap());
+});
+
+// Temporary diagnostic, opened inside Nimiq Pay to find out whether the Mini
+// App provider's sign() verifies against the same prefix /api/auth/sign-in
+// already uses. Above the catch-all so it is not answered with the SEO shell.
+// Delete this and server/miniapp-probe.js once the answer is recorded.
+app.get('/miniapp-probe', (req, res) => {
+    res.set('X-Robots-Tag', 'noindex');
+    res.set('Cache-Control', 'no-store');
+    res.type('html').send(miniappProbe.PAGE);
 });
 
 if (process.env.NODE_ENV == 'PROD') {
