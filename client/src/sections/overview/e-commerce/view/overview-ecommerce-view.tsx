@@ -107,7 +107,7 @@ export function OverviewEcommerceView() {
   return (
     <DashboardContent maxWidth="xl">
       <Typography variant="h2" component="h1" sx={{ mb: 1 }}>
-        Welcome to Nimiq Dashboard 👋
+        Nimiq Network Stats 👋
       </Typography>
       <Typography
         sx={{ color: 'text.secondary', mb: 2 }}

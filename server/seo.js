@@ -47,7 +47,7 @@ const ROUTES = {
     '/network': {
         title: `Nimiq Network Stats - ${SITE_NAME}`,
         description:
-            'Live Nimiq network dashboard: NIM price, total staked, active accounts, transaction volume, supply and validator distribution, all in one view.',
+            'Live Nimiq network stats: NIM price, volume and market cap, daily transactions and TPS, elected validators, total staked, APY, inflation and supply growth.',
         changefreq: 'hourly',
         priority: '1.0',
     },
@@ -341,6 +341,21 @@ function metaFor(pathname) {
     // would fall through to the noindex default below.
     if (pathname === '/' || pathname === '') {
         return { ...ROUTES['/network'], path: '/network', index: true };
+    }
+
+    // Signed-in only, so it must never be indexed and must never enter the
+    // sitemap -- which is why it is here rather than in ROUTES. It still gets
+    // a real title and description: the shell is what fills the browser tab
+    // before React runs, and what a link preview shows when someone pastes the
+    // URL to themselves.
+    if (pathname === '/portfolio') {
+        return {
+            title: `Portfolio - ${SITE_NAME}`,
+            description:
+                'Your Nimiq holdings in one place: balance, stake, rewards and value over time across every address you have signed in with.',
+            path: '/portfolio',
+            index: false,
+        };
     }
 
     // /pools/list renders the same component as /pools, so it points its
