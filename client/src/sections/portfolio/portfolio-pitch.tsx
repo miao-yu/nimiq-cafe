@@ -9,7 +9,7 @@ import Typography from '@mui/material/Typography';
 
 import { RouterLink } from 'src/routes/components';
 
-import { fNumber, fPercent } from 'src/utils/format-number';
+import { fPercent, fShortenNumber } from 'src/utils/format-number';
 
 import { Iconify } from 'src/components/iconify';
 
@@ -39,7 +39,7 @@ export function PortfolioPitch({ pitch, sx, ...other }: Props) {
         </Box>
 
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          You are staking {fNumber(pitch.totalStaked)} NIM, but not with us — so we have no
+          You are staking {fShortenNumber(pitch.totalStaked).toUpperCase()} NIM, but not with us — so we have no
           per-day reward record to chart for you. Stakers here get daily rewards, payout history
           and realised returns on this page.
         </Typography>
@@ -63,7 +63,7 @@ export function PortfolioPitch({ pitch, sx, ...other }: Props) {
                 {entry.fee === null ? 'Fee unknown' : `${fPercent(entry.fee * 100)} fee`}
               </Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {fNumber(entry.staked)} NIM staked
+                {fShortenNumber(entry.staked).toUpperCase()} NIM staked
               </Typography>
             </Box>
           ))}

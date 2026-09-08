@@ -2,7 +2,7 @@ import Box from '@mui/material/Box';
 import Alert from '@mui/material/Alert';
 import Typography from '@mui/material/Typography';
 
-import { fNumber, fCurrency } from 'src/utils/format-number';
+import { fCurrency, fShortenNumber } from 'src/utils/format-number';
 
 import { useGetPortfolio } from 'src/actions/portfolio';
 import { DashboardContent } from 'src/layouts/dashboard';
@@ -63,17 +63,17 @@ export function PortfolioView() {
           gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
         }}
       >
-        <AppWidgetSimple title="Total" text={`${fNumber(totals.total)} NIM`} />
+        <AppWidgetSimple title="Total" text={`${fShortenNumber(totals.total).toUpperCase()} NIM`} />
         <AppWidgetSimple
           title="Value"
           text={nimUsd !== null ? fCurrency(totals.total * nimUsd) : '—'}
           color="info"
         />
-        <AppWidgetSimple title="Staked" text={`${fNumber(totals.staked)} NIM`} color="warning" />
+        <AppWidgetSimple title="Staked" text={`${fShortenNumber(totals.staked).toUpperCase()} NIM`} color="warning" />
         <AppWidgetSimple
           title="Rewards"
-          text={portfolio.rewards ? `${fNumber(portfolio.rewards.total)} NIM` : '—'}
-          extraText={portfolio.rewards ? `${fNumber(portfolio.rewards.last30Days)} in 30d` : undefined}
+          text={portfolio.rewards ? `${fShortenNumber(portfolio.rewards.total).toUpperCase()} NIM` : '—'}
+          extraText={portfolio.rewards ? `${fShortenNumber(portfolio.rewards.last30Days).toUpperCase()} in 30d` : undefined}
           color="success"
         />
       </Box>

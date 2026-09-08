@@ -18,7 +18,7 @@ import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
 import TableContainer from '@mui/material/TableContainer';
 
-import { fNumber } from 'src/utils/format-number';
+import { fShortenNumber } from 'src/utils/format-number';
 import { fShortenString } from 'src/utils/format-blockchain';
 
 import axios, { endpoints } from 'src/lib/axios';
@@ -154,8 +154,8 @@ export function PortfolioAccounts({
                     )}
                   </TableCell>
 
-                  <TableCell align="right">{fNumber(account.liquid)}</TableCell>
-                  <TableCell align="right">{fNumber(account.staked)}</TableCell>
+                  <TableCell align="right">{fShortenNumber(account.liquid).toUpperCase()}</TableCell>
+                  <TableCell align="right">{fShortenNumber(account.staked).toUpperCase()}</TableCell>
 
                   <TableCell>
                     {account.validator ? (

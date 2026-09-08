@@ -6,7 +6,7 @@ import Card from '@mui/material/Card';
 import CardHeader from '@mui/material/CardHeader';
 import Typography from '@mui/material/Typography';
 
-import { fNumber, fCurrency } from 'src/utils/format-number';
+import { fNumber, fCurrency, fShortenNumber } from 'src/utils/format-number';
 
 import { Chart, useChart } from 'src/components/chart';
 
@@ -40,7 +40,8 @@ export function PortfolioValue({ title, subheader, history, currency = 'NIM', sx
     xaxis: { categories: usable.map((point) => point.date), type: 'category' },
     yaxis: {
       labels: {
-        formatter: (value: number) => (currency === 'USD' ? fCurrency(value) : fNumber(value)),
+        formatter: (value: number) =>
+          currency === 'USD' ? fCurrency(value) : fShortenNumber(value).toUpperCase(),
       },
     },
     tooltip: {

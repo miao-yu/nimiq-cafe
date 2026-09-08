@@ -7,7 +7,7 @@ import Divider from '@mui/material/Divider';
 import { useTheme } from '@mui/material/styles';
 import CardHeader from '@mui/material/CardHeader';
 
-import { fNumber } from 'src/utils/format-number';
+import { fNumber, fShortenNumber } from 'src/utils/format-number';
 
 import { Chart, useChart, ChartLegends } from 'src/components/chart';
 
@@ -58,8 +58,10 @@ export function PortfolioAllocation({ title, subheader, totals, sx, ...other }: 
         donut: {
           size: '72%',
           labels: {
-            value: { formatter: (value: number | string) => fNumber(value) },
-            total: { formatter: () => fNumber(totals.total) },
+            // Compact in the centre, where there is no room; the tooltip
+            // above keeps the exact figure.
+            value: { formatter: (value: number | string) => fShortenNumber(value).toUpperCase() },
+            total: { formatter: () => fShortenNumber(totals.total).toUpperCase() },
           },
         },
       },

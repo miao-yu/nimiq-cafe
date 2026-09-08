@@ -6,7 +6,7 @@ import Card from '@mui/material/Card';
 import CardHeader from '@mui/material/CardHeader';
 import Typography from '@mui/material/Typography';
 
-import { fNumber } from 'src/utils/format-number';
+import { fNumber, fShortenNumber } from 'src/utils/format-number';
 
 import { Chart, useChart } from 'src/components/chart';
 
@@ -22,7 +22,7 @@ type Props = CardProps & {
 export function PortfolioRewards({ title, subheader, rewards, sx, ...other }: Props) {
   const chartOptions = useChart({
     xaxis: { categories: rewards.daily.map((day) => day.date), type: 'category' },
-    yaxis: { labels: { formatter: (value: number) => fNumber(value) } },
+    yaxis: { labels: { formatter: (value: number) => fShortenNumber(value).toUpperCase() } },
     tooltip: { y: { formatter: (value: number) => `${fNumber(value)} NIM` } },
   });
 
