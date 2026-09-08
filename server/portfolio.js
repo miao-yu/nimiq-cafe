@@ -15,13 +15,16 @@ function canonical(address) {
 }
 
 /**
- * Record that an address signed in, creating its bundle on first sight.
+ * Register an address as active, creating its bundle on first sight.
  *
- * This is also what makes an address eligible for daily snapshots: the cron
- * walks portfolio_accounts, so nobody's balance is recorded until they have
- * chosen to sign in at least once.
+ * Called at sign-in and again on every authenticated portfolio read, because
+ * sign-in alone is not enough: tokens last 30 days, so anyone holding one from
+ * before this table existed would never have been registered -- no bundle to
+ * link addresses into, and nothing for the snapshot cron to record.
+ *
+ * Idempotent, so calling it on every read only moves last_seen.
  */
-async function recordSignIn(pool, address) {
+async function touchAccount(pool, address) {
     const key = canonical(address);
     await pool.query(
         `INSERT INTO ${BUNDLE_TABLE} (address, bundle_id, first_seen, last_seen)
@@ -180,7 +183,7 @@ async function getSnapshotTargets(pool) {
 
 module.exports = {
     canonical,
-    recordSignIn,
+    touchAccount,
     getBundleAddresses,
     linkAddress,
     unlinkAddress,

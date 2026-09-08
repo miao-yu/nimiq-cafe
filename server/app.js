@@ -131,9 +131,9 @@ app.post('/api/auth/sign-in', async (req, res) => {
     // Registers the address for daily snapshots and gives it a bundle. Failing
     // here must not fail the sign-in -- the portfolio degrades, auth does not.
     try {
-      await portfolio.recordSignIn(pool, address);
+      await portfolio.touchAccount(pool, address);
     } catch (error) {
-      console.error('recordSignIn failed:', error.message);
+      console.error('touchAccount failed:', error.message);
     }
 
     // The token is issued for the address derived from the key, never for the
@@ -492,6 +492,15 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
     try {
         const signedInAddress = portfolio.canonical(req.user.address);
 
+        // Self-heals a session older than this table, and is what actually
+        // enrols most people in the daily snapshot -- a 30-day token means
+        // sign-in may be weeks in the past.
+        try {
+            await portfolio.touchAccount(pool, signedInAddress);
+        } catch (error) {
+            console.error('touchAccount failed:', error.message);
+        }
+
         let addresses = [signedInAddress];
         try {
             addresses = await portfolio.getBundleAddresses(pool, signedInAddress);
@@ -618,6 +627,10 @@ app.post('/api/portfolio/addresses', authenticateToken, async function(req, res)
     }
 
     try {
+        // The owner may have signed in before this table existed, in which case
+        // it has no bundle to link into yet.
+        await portfolio.touchAccount(pool, req.user.address);
+
         const result = await portfolio.linkAddress(pool, req.user.address, candidate);
         if (!result.ok) {
             const messages = {
