@@ -5,6 +5,7 @@ import Alert from '@mui/material/Alert';
 import LoadingButton from '@mui/lab/LoadingButton';
 
 import { warmSigner } from 'src/lib/nimiq-provider';
+
 import { signInWithAddress } from 'src/auth/context/nimiq';
 
 import { useAuthContext } from '../../hooks';
