@@ -56,7 +56,12 @@ export const navData: NavSectionProps['data'] = [
    * would file it under a category and undo that.
    */
   {
-    items: [{ title: 'Dashboard', path: paths.nimiqDashboard, icon: ICONS.dashboard }],
+    items: [
+      { title: 'Dashboard', path: paths.nimiqDashboard, icon: ICONS.dashboard },
+      // Renders for everyone; the route itself is guarded, so a signed-out
+      // click lands on sign-in rather than a broken page.
+      { title: 'Portfolio', path: paths.portfolio, icon: ICONS.banking },
+    ],
   },
   /**
    * Pool

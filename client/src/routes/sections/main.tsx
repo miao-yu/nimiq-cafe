@@ -27,6 +27,7 @@ const PoolDetailsPage = lazy(() => import('src/pages/dashboard/pool/details'));
 const BlocksPage = lazy(() => import('src/pages/explorer/blocks'));
 const TransactionsPage = lazy(() => import('src/pages/explorer/transactions'));
 const CalculatorPage = lazy(() => import('src/pages/calculator'));
+const PortfolioPage = lazy(() => import('src/pages/portfolio'));
 const ConverterPage = lazy(() => import('src/pages/converter'));
 
 // ----------------------------------------------------------------------
@@ -50,6 +51,9 @@ export const mainRoutes: RouteObject[] = [
       { path: 'faq', element: <FaqsPage /> },
       { path: 'staker/:address', element: <StakerPage /> },
       { path: 'settings', element: <AuthGuard><UserEditPage /></AuthGuard> },
+      // Signed-in only: the address comes from the token, so there is nothing
+      // to show without one.
+      { path: 'portfolio', element: <AuthGuard><PortfolioPage /></AuthGuard> },
       { path: 'dashboard', element: <DashboardPage /> },
       { path: 'block/:blockNumber', element: <BlockPage /> },
       { path: 'tx/:hash', element: <TransactionPage /> },

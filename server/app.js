@@ -21,6 +21,7 @@ const path = require('path');
 var currencies = require(__dirname + '/json/currency.json');
 const seo = require('./seo');
 const { issueChallenge, consumeChallenge } = require('./challenge');
+const portfolio = require('./portfolio');
 
 var addressBook = require(__dirname + '/json/address-book.json');
 
@@ -125,6 +126,14 @@ app.post('/api/auth/sign-in', async (req, res) => {
     const address = verifySignedMessage(publicKey, signature, challenge.message, signer);
     if (!address) {
       return res.status(400).json({ message: 'Invalid credentials.' });
+    }
+
+    // Registers the address for daily snapshots and gives it a bundle. Failing
+    // here must not fail the sign-in -- the portfolio degrades, auth does not.
+    try {
+      await portfolio.recordSignIn(pool, address);
+    } catch (error) {
+      console.error('recordSignIn failed:', error.message);
     }
 
     // The token is issued for the address derived from the key, never for the
@@ -366,6 +375,283 @@ app.post('/api/settings', authenticateToken, async (req, res) => {
       res.status(500).json({ error: 'Failed to update payout type' });
     }
   });
+
+// ---------------------------------------------------------------------------
+// Portfolio
+//
+// Private in the sense that it is *yours* -- the address comes from the token,
+// never from the URL, so there is no per-address portfolio to enumerate. The
+// underlying data is public on the chain either way; what the sign-in buys is
+// not having to type an address, and the bundle of addresses below.
+// ---------------------------------------------------------------------------
+
+const LUNA = 100000;
+
+/** Chain state for one address, shaped for the portfolio view. */
+async function portfolioAccount(address) {
+    const [account, staker] = await Promise.all([
+        getAccountByAddress(address),
+        getStakerByAddress(address).catch(() => null),
+    ]);
+
+    if (!account) {
+        // An address that has never received NIM has no account on chain. It
+        // is a real, empty address rather than an error.
+        return {
+            address,
+            name: fAddressInfo(address) ? fAddressInfo(address).name : fShortenString(address),
+            liquid: 0, staked: 0, inactive: 0, retired: 0,
+            validator: null,
+            onChain: false,
+        };
+    }
+
+    let validator = null;
+    if (staker && staker.delegation) {
+        const delegate = await getValidatorByAddress(staker.delegation).catch(() => null);
+        const info = fAddressInfo(staker.delegation);
+        validator = {
+            address: staker.delegation,
+            name: info ? info.name : fShortenString(staker.delegation),
+            avatar: info && info.logo
+                ? info.logo
+                : `${NIMIQ_WATCH_URL.replace('/api/v1', '')}/api/v1/iqon/${staker.delegation.replaceAll(' ', '+')}`,
+            addressLink: `/wallet/${staker.delegation}`,
+            balance: delegate ? delegate.balance / LUNA : null,
+            isNimiqCafe: staker.delegation.replace(/\s+/g, '') === VALIDATOR_ADDRESS.replace(/\s+/g, ''),
+        };
+    }
+
+    return {
+        address,
+        name: fAddressInfo(address) ? fAddressInfo(address).name : fShortenString(address),
+        liquid: (account.balance || 0) / LUNA,
+        staked: staker ? (staker.balance || 0) / LUNA : 0,
+        inactive: staker ? (staker.inactiveBalance || 0) / LUNA : 0,
+        retired: staker ? (staker.retiredBalance || 0) / LUNA : 0,
+        validator,
+        onChain: true,
+    };
+}
+
+/**
+ * What a tier-2 visitor -- staking, but not here -- is shown instead of the
+ * reward history we cannot have for them. Their own fee against ours, and what
+ * the difference is worth on the stake they already hold.
+ */
+async function portfolioPitch(accounts) {
+    const staked = accounts.filter((a) => a.validator && !a.validator.isNimiqCafe);
+    if (!staked.length) {
+        return null;
+    }
+
+    let validators = [];
+    try {
+        validators = JSON.parse(await fsPromise.readFile(__dirname + '/json/validators.json', 'utf-8'));
+    } catch (error) {
+        // Written by cron; missing is survivable, the pitch just loses its numbers.
+        console.error('portfolioPitch: validators.json unavailable');
+    }
+
+    const byAddress = {};
+    validators.forEach((validator) => { byAddress[validator.address] = validator; });
+
+    const ours = byAddress[VALIDATOR_ADDRESS];
+    const totalStaked = staked.reduce((sum, a) => sum + a.staked + a.inactive, 0);
+
+    const current = staked.map((account) => {
+        const theirs = byAddress[account.validator.address];
+        return {
+            address: account.address,
+            validatorName: account.validator.name,
+            fee: theirs && theirs.fee !== undefined ? Number(theirs.fee) : null,
+            staked: account.staked + account.inactive,
+        };
+    });
+
+    // Only the fees that are actually known; an unknown one is left out rather
+    // than assumed to be zero, which would understate the difference.
+    const known = current.filter((entry) => entry.fee !== null);
+    const weightedFee = known.length && totalStaked
+        ? known.reduce((sum, entry) => sum + entry.fee * entry.staked, 0) / known.reduce((sum, e) => sum + e.staked, 0)
+        : null;
+
+    return {
+        totalStaked,
+        current,
+        ourFee: ours && ours.fee !== undefined ? Number(ours.fee) : DEFAULT_POOL_FEE,
+        weightedFee,
+        // Deliberately not an APY projection: rewards depend on election luck
+        // and total stake, and a made-up number here would be the least
+        // trustworthy thing on the page.
+        feeDifference: weightedFee === null ? null : weightedFee - (ours && ours.fee !== undefined ? Number(ours.fee) : DEFAULT_POOL_FEE),
+    };
+}
+
+app.get('/api/portfolio', authenticateToken, async function(req, res) {
+    try {
+        const signedInAddress = portfolio.canonical(req.user.address);
+
+        let addresses = [signedInAddress];
+        try {
+            addresses = await portfolio.getBundleAddresses(pool, signedInAddress);
+        } catch (error) {
+            // A missing bundle must not blank the page -- fall back to the one
+            // address the token proves.
+            console.error('getBundleAddresses failed:', error.message);
+        }
+
+        const accounts = await Promise.all(addresses.map(portfolioAccount));
+
+        const totals = accounts.reduce((sum, account) => ({
+            liquid: sum.liquid + account.liquid,
+            staked: sum.staked + account.staked,
+            inactive: sum.inactive + account.inactive,
+            retired: sum.retired + account.retired,
+        }), { liquid: 0, staked: 0, inactive: 0, retired: 0 });
+        totals.total = totals.liquid + totals.staked + totals.inactive + totals.retired;
+
+        const withUs = accounts.filter((a) => a.validator && a.validator.isNimiqCafe);
+        const anyStake = accounts.some((a) => a.staked + a.inactive + a.retired > 0);
+
+        // 1 account only, 2 staking elsewhere, 3 staking with us.
+        const tier = withUs.length ? 3 : anyStake ? 2 : 1;
+
+        const [priceInfo, history] = await Promise.all([
+            getPriceInfo().catch(() => null),
+            portfolio.getSnapshots(pool, addresses, 90).catch((error) => {
+                console.error('getSnapshots failed:', error.message);
+                return [];
+            }),
+        ]);
+
+        // Snapshots are per address per day; the chart wants one series.
+        const byDate = {};
+        history.forEach((row) => {
+            const date = row.snapshot_date instanceof Date
+                ? row.snapshot_date.toISOString().slice(0, 10)
+                : String(row.snapshot_date).slice(0, 10);
+            const entry = byDate[date] || (byDate[date] = { date, liquid: 0, staked: 0, inactive: 0, retired: 0, nimUsd: null });
+            entry.liquid += Number(row.liquid) / LUNA;
+            entry.staked += Number(row.staked) / LUNA;
+            entry.inactive += Number(row.inactive) / LUNA;
+            entry.retired += Number(row.retired) / LUNA;
+            if (row.nim_usd !== null) entry.nimUsd = Number(row.nim_usd);
+        });
+        const series = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+
+        let rewards = null;
+        let payouts = null;
+        if (tier === 3) {
+            const perAddress = await Promise.all(withUs.map(async (account) => {
+                const [total, today, last30, list] = await Promise.all([
+                    getStakerTotalRewards(account.address).catch(() => 0),
+                    getStakerTodayRewards(account.address).catch(() => 0),
+                    getStakerLast30DaysRewards(account.address).catch(() => 0),
+                    getStakerDailyRewards(account.address).catch(() => []),
+                ]);
+                return { address: account.address, total, today, last30, daily: list };
+            }));
+
+            const daily = {};
+            perAddress.forEach((entry) => {
+                (entry.daily || []).forEach((row) => {
+                    const date = row.reward_date instanceof Date
+                        ? row.reward_date.toISOString().slice(0, 10)
+                        : String(row.reward_date).slice(0, 10);
+                    daily[date] = (daily[date] || 0) + Number(row.total_rewards || 0) / LUNA;
+                });
+            });
+
+            rewards = {
+                total: perAddress.reduce((sum, e) => sum + Number(e.total || 0), 0) / LUNA,
+                today: perAddress.reduce((sum, e) => sum + Number(e.today || 0), 0) / LUNA,
+                last30Days: perAddress.reduce((sum, e) => sum + Number(e.last30 || 0), 0) / LUNA,
+                daily: Object.keys(daily).sort().map((date) => ({ date, rewards: daily[date] })),
+            };
+
+            const lists = await Promise.all(withUs.map((a) => getStakerPayouts(a.address).catch(() => [])));
+            payouts = lists.flat();
+        }
+
+        res.json({
+            signedInAddress,
+            addresses,
+            tier,
+            accounts,
+            totals,
+            // getPriceInfo returns the last 25 points, oldest first; the
+            // portfolio only needs the current one.
+            price: Array.isArray(priceInfo) && priceInfo.length ? priceInfo[priceInfo.length - 1] : null,
+            history: series,
+            rewards,
+            payouts,
+            pitch: tier === 2 ? await portfolioPitch(accounts) : null,
+        });
+    } catch (error) {
+        console.error('GET /api/portfolio failed:', error);
+        res.status(500).json({ message: 'Could not load your portfolio.' });
+    }
+});
+
+/**
+ * Add another address to the bundle. Proving control of it is the whole
+ * authorisation: the caller signs a challenge with the address being added, so
+ * this reuses the sign-in machinery rather than inventing a second one.
+ */
+app.post('/api/portfolio/addresses', authenticateToken, async function(req, res) {
+    const { code, publicKey, signature, signer } = req.body;
+
+    if (typeof code !== 'string' || typeof publicKey !== 'string'
+        || typeof signature !== 'string' || typeof signer !== 'string') {
+      return res.status(400).json({ message: 'Invalid request.' });
+    }
+
+    const challenge = consumeChallenge(code);
+    if (!challenge) {
+      return res.status(400).json({ message: 'That request expired or was already used. Try again.' });
+    }
+
+    const candidate = verifySignedMessage(publicKey, signature, challenge.message, signer);
+    if (!candidate) {
+      return res.status(400).json({ message: 'That signature did not verify.' });
+    }
+
+    try {
+        const result = await portfolio.linkAddress(pool, req.user.address, candidate);
+        if (!result.ok) {
+            const messages = {
+                'same-address': 'That address is already the one you are signed in with.',
+                'already-linked': 'That address is already in your portfolio.',
+                'in-another-bundle': 'That address is grouped with other addresses already. Remove it there first.',
+                'unknown-owner': 'Sign in again and retry.',
+            };
+            return res.status(400).json({ message: messages[result.reason] || 'Could not add that address.' });
+        }
+        res.status(200).json({ address: candidate });
+    } catch (error) {
+        console.error('linkAddress failed:', error);
+        res.status(500).json({ message: 'Could not add that address.' });
+    }
+});
+
+/** Remove an address from the bundle. It keeps its own history and can sign in alone. */
+app.delete('/api/portfolio/addresses/:address', authenticateToken, async function(req, res) {
+    try {
+        const result = await portfolio.unlinkAddress(pool, req.user.address, req.params.address);
+        if (!result.ok) {
+            const messages = {
+                'cannot-remove-self': 'You cannot remove the address you are signed in with.',
+                'not-in-bundle': 'That address is not in your portfolio.',
+            };
+            return res.status(400).json({ message: messages[result.reason] || 'Could not remove that address.' });
+        }
+        res.status(200).json({ address: portfolio.canonical(req.params.address) });
+    } catch (error) {
+        console.error('unlinkAddress failed:', error);
+        res.status(500).json({ message: 'Could not remove that address.' });
+    }
+});
 
 app.get('/api/dailyrewards/:address', async function(req, res, next) {
     const address = req.params.address;

@@ -42,6 +42,7 @@ export const endpoints = {
     signIn: '/api/auth/sign-in',
     signUp: '/api/auth/sign-up',
   },
+  portfolio: { root: '/api/portfolio', addresses: '/api/portfolio/addresses' },
   blockchain: {
     stakedInfo: '/api/stakedinfo',
     electedValidators: '/api/elected-validators',
