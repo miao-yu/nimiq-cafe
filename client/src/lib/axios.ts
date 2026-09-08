@@ -40,6 +40,7 @@ export const endpoints = {
     me: '/api/auth/me',
     challenge: '/api/auth/challenge',
     signIn: '/api/auth/sign-in',
+    signOut: '/api/auth/sign-out',
     signUp: '/api/auth/sign-up',
   },
   portfolio: { root: '/api/portfolio', addresses: '/api/portfolio/addresses' },

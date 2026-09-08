@@ -49,6 +49,41 @@ const NIMIQ_HUB_URL = 'https://api.nimiqhub.com';
 // than defaulted: a fallback here would let every deploy that forgot .env sign
 // tokens with a value that is the same everywhere.
 const JWT_SECRET = required('JWT_SECRET');
+
+// Shared with reef.nimiq.cafe. A cookie is the only browser store that crosses
+// subdomains -- sessionStorage and localStorage are per-origin -- so scoping it
+// to the parent domain is what lets one sign-in cover both apps. Reef signs the
+// same HS256 {address} payload with the same secret, so either side's token
+// verifies on the other.
+const SESSION_COOKIE = 'nimiq_cafe_session';
+const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+// Unset outside production: a Domain of .nimiq.cafe is rejected on localhost,
+// which would silently drop the cookie in development.
+const SESSION_COOKIE_DOMAIN = process.env.SESSION_COOKIE_DOMAIN
+    || (process.env.NODE_ENV === 'PROD' ? '.nimiq.cafe' : undefined);
+
+function setSessionCookie(res, token) {
+    res.cookie(SESSION_COOKIE, token, {
+        httpOnly: true,
+        // Blocks the cross-site POSTs that a cookie would otherwise expose
+        // /api/settings and /api/portfolio/addresses to.
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'PROD',
+        path: '/',
+        maxAge: SESSION_MAX_AGE_MS,
+        ...(SESSION_COOKIE_DOMAIN ? { domain: SESSION_COOKIE_DOMAIN } : {}),
+    });
+}
+
+function clearSessionCookie(res) {
+    res.clearCookie(SESSION_COOKIE, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'PROD',
+        path: '/',
+        ...(SESSION_COOKIE_DOMAIN ? { domain: SESSION_COOKIE_DOMAIN } : {}),
+    });
+}
 const DEFAULT_POOL_FEE = 0;
 
 const TRANSACTION_LIST_KEY = 'transactions';
@@ -140,8 +175,29 @@ app.post('/api/auth/sign-in', async (req, res) => {
     // `signer` the request asked for.
     const accessToken = generateToken(address);
 
+    // Both: the header keeps working for this SPA, the cookie is what Reef sees.
+    setSessionCookie(res, accessToken);
+
     res.status(200).json({ accessToken });
   });
+
+/**
+ * Who the caller is, from either the header or the shared cookie.
+ *
+ * This exists for arrivals from reef.nimiq.cafe: the cookie is httpOnly, so
+ * the front end cannot read it and would otherwise render as signed out even
+ * though every API call would have succeeded. Returns the address only -- not
+ * the token -- so the cookie stays out of JavaScript's reach.
+ */
+app.get('/api/auth/me', authenticateToken, (req, res) => {
+    res.status(200).json({ address: req.user.address });
+});
+
+/** Clears the shared cookie. JavaScript cannot, since it is httpOnly. */
+app.post('/api/auth/sign-out', (req, res) => {
+    clearSessionCookie(res);
+    res.status(200).json({ ok: true });
+});
 
 app.get('/api/payout-history', async function(req, res, next) {
     const payoutHistoryData = await getPayoutHistory();
@@ -2136,7 +2192,11 @@ function fAddressInfo(address) {
   };
 
 function authenticateToken(req, res, next) {
-    const token = req.headers['authorization']?.split(' ')[1];
+    // Header first, because this app's own SPA sends one and a header cannot be
+    // driven cross-site. The cookie is the fallback that carries a session in
+    // from reef.nimiq.cafe.
+    const token = req.headers['authorization']?.split(' ')[1]
+        || (req.cookies && req.cookies[SESSION_COOKIE]);
     if (!token) return res.status(401).json({ message: 'Access denied.' });
   
     jwt.verify(token, JWT_SECRET, (err, user) => {

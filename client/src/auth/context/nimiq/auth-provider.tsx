@@ -1,6 +1,8 @@
 import { useSetState } from 'minimal-shared/hooks';
 import { useMemo, useEffect, useCallback } from 'react';
 
+import axios, { endpoints } from 'src/lib/axios';
+
 import { JWT_STORAGE_KEY } from './constant';
 import { AuthContext } from '../auth-context';
 import { jwtDecode, setSession, isValidToken } from './utils';
@@ -32,7 +34,20 @@ export function AuthProvider({ children }: Props) {
         const decoded = jwtDecode(accessToken);
 
         setState({ user: { address: decoded.address, accessToken }, loading: false });
-      } else {
+        return;
+      }
+
+      // Nothing stored locally, but the session may have been started on
+      // reef.nimiq.cafe: the two share a cookie on the parent domain. It is
+      // httpOnly, so the only way to see it is to ask the server. The address
+      // comes back without a token on purpose -- handing the cookie to
+      // JavaScript would undo the reason it is httpOnly. Requests authenticate
+      // by cookie from here on, which works because they are same-origin.
+      try {
+        const res = await axios.get(endpoints.auth.me);
+
+        setState({ user: { address: res.data.address }, loading: false });
+      } catch {
         setState({ user: null, loading: false });
       }
     } catch (error) {

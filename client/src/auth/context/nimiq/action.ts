@@ -58,6 +58,10 @@ export const signInWithAddress = async (): Promise<void> => {
  *************************************** */
 export const signOut = async (): Promise<void> => {
   try {
+    // The shared cookie is httpOnly, so only the server can clear it. Without
+    // this, signing out here would leave you signed in on reef.nimiq.cafe --
+    // and signed back in here on the next reload.
+    await axios.post(endpoints.auth.signOut).catch(() => undefined);
     await setSession(null);
   } catch (error) {
     console.error('Error during sign out:', error);
