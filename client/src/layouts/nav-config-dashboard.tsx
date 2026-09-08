@@ -49,15 +49,20 @@ export const ICONS = {
 
 export const navData: NavSectionProps['data'] = [
   /**
-   * Dashboard
+   * Network and Portfolio
    *
-   * Alone at the top with no subheader: the domain root now serves this, so it
+   * Alone at the top with no subheader: the domain root serves Network, so it
    * is the site's home rather than one tool among several. A subheader here
    * would file it under a category and undo that.
+   *
+   * Named "Network" rather than "Dashboard" because Portfolio arrived beside
+   * it: "dashboard" describes a format, not a subject, so next to a page that
+   * is explicitly yours it read as though it might be yours too. Network and
+   * Portfolio say plainly which one is the chain and which one is you.
    */
   {
     items: [
-      { title: 'Dashboard', path: paths.nimiqDashboard, icon: ICONS.dashboard },
+      { title: 'Network', path: paths.network, icon: ICONS.dashboard },
       // Renders for everyone; the route itself is guarded, so a signed-out
       // click lands on sign-in rather than a broken page.
       { title: 'Portfolio', path: paths.portfolio, icon: ICONS.banking },

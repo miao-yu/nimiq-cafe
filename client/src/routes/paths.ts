@@ -21,7 +21,7 @@ export const paths = {
   staking: '/staking',
   faq: '/faq',
   staker: '/staker',
-  nimiqDashboard: '/dashboard',
+  network: '/network',
   portfolio: '/portfolio',
   block: '/block',
   blocks: '/blocks',

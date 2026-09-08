@@ -44,9 +44,8 @@ export const mainRoutes: RouteObject[] = [
   {
     element: CONFIG.auth.skip ? mainLayout() : <AuthGuard>{mainLayout()}</AuthGuard>,
     children: [
-      // The site's home. Changed from /staking so the domain root opens on the
-      // network dashboard; server/seo.js resolves "/" to the same page.
-      { path: '/', element: <Navigate to="/dashboard" replace /> },
+      // The site's home; server/seo.js resolves "/" to the same page.
+      { path: '/', element: <Navigate to="/network" replace /> },
       { path: 'staking', element: <StakingPage /> },
       { path: 'faq', element: <FaqsPage /> },
       { path: 'staker/:address', element: <StakerPage /> },
@@ -54,7 +53,7 @@ export const mainRoutes: RouteObject[] = [
       // Signed-in only: the address comes from the token, so there is nothing
       // to show without one.
       { path: 'portfolio', element: <AuthGuard><PortfolioPage /></AuthGuard> },
-      { path: 'dashboard', element: <DashboardPage /> },
+      { path: 'network', element: <DashboardPage /> },
       { path: 'block/:blockNumber', element: <BlockPage /> },
       { path: 'tx/:hash', element: <TransactionPage /> },
       { path: 'wallet/:address', element: <WalletPage /> },

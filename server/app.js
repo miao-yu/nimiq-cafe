@@ -1370,6 +1370,14 @@ app.get('/sitemap.xml', (req, res) => {
     res.type('application/xml').send(seo.buildSitemap());
 });
 
+// /dashboard became /network. It was the domain root's canonical for a few
+// hours and is the kind of URL people bookmark, so it redirects rather than
+// 404s. Permanent, because the move is. Above the catch-all, which would
+// otherwise answer it with the SEO shell and a noindex.
+app.get('/dashboard', (req, res) => {
+    res.redirect(301, '/network');
+});
+
 if (process.env.NODE_ENV == 'PROD') {
     const INDEX_HTML = path.join(__dirname, '../client/dist/index.html');
 

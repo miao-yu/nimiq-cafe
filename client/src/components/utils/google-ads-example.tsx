@@ -41,7 +41,7 @@ export const PageSpecificAdsExample = () => (
 				"/settings", // User settings
 				"/auth", // Authentication pages
 				"/faq", // FAQ page
-				"/dashboard", // Dashboard page
+				"/network", // Network page
 			]}
 		/>
 	);

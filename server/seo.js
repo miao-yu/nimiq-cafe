@@ -44,8 +44,8 @@ const ROUTES = {
         priority: '0.8',
         breadcrumb: ['Explorer', 'Pools'],
     },
-    '/dashboard': {
-        title: `Nimiq Dashboard - ${SITE_NAME}`,
+    '/network': {
+        title: `Nimiq Network Stats - ${SITE_NAME}`,
         description:
             'Live Nimiq network dashboard: NIM price, total staked, active accounts, transaction volume, supply and validator distribution, all in one view.',
         changefreq: 'hourly',
@@ -214,7 +214,7 @@ function webSiteLd() {
 }
 
 function breadcrumbLd(trail, pathname) {
-    const items = [{ name: 'Home', item: `${SITE_URL}/dashboard` }];
+    const items = [{ name: 'Home', item: `${SITE_URL}/network` }];
 
     trail.forEach((name, index) => {
         // Only the final crumb is a real destination; the intermediate ones are
@@ -336,11 +336,11 @@ function metaFor(pathname) {
         return { ...ROUTES[pathname], path: pathname, index: true };
     }
 
-    // The root redirects to /dashboard client-side, but a crawler sees whatever
+    // The root redirects to /network client-side, but a crawler sees whatever
     // the server hands it first. Without this the most-linked URL on the domain
     // would fall through to the noindex default below.
     if (pathname === '/' || pathname === '') {
-        return { ...ROUTES['/dashboard'], path: '/dashboard', index: true };
+        return { ...ROUTES['/network'], path: '/network', index: true };
     }
 
     // /pools/list renders the same component as /pools, so it points its

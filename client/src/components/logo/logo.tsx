@@ -20,7 +20,7 @@ export type LogoProps = LinkProps & {
 };
 
 export const Logo = forwardRef<HTMLAnchorElement, LogoProps>((props, ref) => {
-  const { className, href = '/dashboard', isSingle = true, disabled, sx, ...other } = props;
+  const { className, href = '/network', isSingle = true, disabled, sx, ...other } = props;
 
   const singleLogo = (
     <img
