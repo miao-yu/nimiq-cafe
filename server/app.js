@@ -20,7 +20,6 @@ var mysql = require('mysql2/promise');
 const path = require('path');
 var currencies = require(__dirname + '/json/currency.json');
 const seo = require('./seo');
-const miniappProbe = require('./miniapp-probe');
 
 var addressBook = require(__dirname + '/json/address-book.json');
 
@@ -96,15 +95,22 @@ app.use(cors({
 app.post('/api/auth/sign-in', async (req, res) => {
     const { message, base64Signature, base64SignerPublicKey, signer } = req.body;
 
-    const signature = Uint8Array.from(Buffer.from(base64Signature, 'base64'));
-    const signerPublicKey = Uint8Array.from(Buffer.from(base64SignerPublicKey, 'base64'));
-  
-    const isValid = verifySignature(signerPublicKey, signature, message);
-    if (!isValid) {
+    if (typeof message !== 'string' || typeof base64Signature !== 'string'
+        || typeof base64SignerPublicKey !== 'string' || typeof signer !== 'string') {
       return res.status(400).json({ message: 'Invalid credentials.' });
     }
-  
-    const accessToken = generateToken(signer);
+
+    const signature = Uint8Array.from(Buffer.from(base64Signature, 'base64'));
+    const signerPublicKey = Uint8Array.from(Buffer.from(base64SignerPublicKey, 'base64'));
+
+    const address = verifySignedMessage(signerPublicKey, signature, message, signer);
+    if (!address) {
+      return res.status(400).json({ message: 'Invalid credentials.' });
+    }
+
+    // The token is issued for the address derived from the key, never for the
+    // `signer` the request asked for.
+    const accessToken = generateToken(address);
 
     res.status(200).json({ accessToken });
   });
@@ -1046,16 +1052,6 @@ app.get('/sitemap.xml', (req, res) => {
     res.type('application/xml').send(seo.buildSitemap());
 });
 
-// Temporary diagnostic, opened inside Nimiq Pay to find out whether the Mini
-// App provider's sign() verifies against the same prefix /api/auth/sign-in
-// already uses. Above the catch-all so it is not answered with the SEO shell.
-// Delete this and server/miniapp-probe.js once the answer is recorded.
-app.get('/miniapp-probe', (req, res) => {
-    res.set('X-Robots-Tag', 'noindex');
-    res.set('Cache-Control', 'no-store');
-    res.type('html').send(miniappProbe.PAGE);
-});
-
 if (process.env.NODE_ENV == 'PROD') {
     const INDEX_HTML = path.join(__dirname, '../client/dist/index.html');
 
@@ -1749,24 +1745,51 @@ function generateToken(address) {
     return jwt.sign({ address }, JWT_SECRET, { expiresIn: '30d' });
 }
 
-function verifySignature(signerPublicKey, signature, message) {
+// Nimiq addresses are compared in their canonical spaced uppercase form.
+function normalizeAddress(address) {
+    return String(address).replace(/\s+/g, '').toUpperCase();
+}
+
+/**
+ * Verify wallet ownership, and return the address that was proven -- not the
+ * one the caller claimed. Both halves are mandatory:
+ *
+ *   1. the signature is valid for the supplied public key, and
+ *   2. that public key derives to the address being claimed.
+ *
+ * Without (2) a signature only proves the caller owns *some* wallet. They
+ * could sign any message with their own key, send `signer` set to someone
+ * else's address, and be handed that address's token.
+ *
+ * The framing is what the Nimiq Hub and Nimiq Pay both produce:
+ * SHA-256(MSG_PREFIX + byteLength + message). byteLength, not String.length --
+ * the two agree only while the message stays ASCII.
+ */
+function verifySignedMessage(signerPublicKey, signature, message, claimedAddress) {
     try {
         const deserializedSignature = Nimiq.Signature.deserialize(signature);
         const publicKey = new Nimiq.PublicKey(signerPublicKey);
-    
+
         const data = HubApi.MSG_PREFIX
-                    + message.length
+                    + Buffer.byteLength(message, 'utf8')
                     + message;
 
         const dataBytes = Nimiq.BufferUtils.fromUtf8(data);
         const hash = Nimiq.Hash.computeSha256(dataBytes);
-    
-        const isValid = publicKey.verify(deserializedSignature, hash);
-    
-        return isValid;
+
+        if (!publicKey.verify(deserializedSignature, hash)) {
+            return null;
+        }
+
+        const derived = publicKey.toAddress().toUserFriendlyAddress();
+        if (normalizeAddress(derived) !== normalizeAddress(claimedAddress)) {
+            return null;
+        }
+
+        return derived;
     } catch (error) {
         console.error(error);
-        return false;
+        return null;
     }
 }
 
