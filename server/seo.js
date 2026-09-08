@@ -33,23 +33,23 @@ const ROUTES = {
         description:
             'Stake NIM with NimiqCafe: low fees, payouts every minute and a 10 NIM minimum. Track pool performance, rewards and validator status in real time.',
         changefreq: 'hourly',
-        priority: '1.0',
+        priority: '0.9',
+        breadcrumb: ['Pool', 'Staking'],
     },
     '/pools': {
         title: `Nimiq Staking Pools - ${SITE_NAME}`,
         description:
             'Compare every Nimiq staking pool side by side: fees, payout schedule, payout type, total stake, staker count and validator score. Updated continuously.',
         changefreq: 'hourly',
-        priority: '0.9',
-        breadcrumb: ['Tools', 'Pools'],
+        priority: '0.8',
+        breadcrumb: ['Explorer', 'Pools'],
     },
     '/dashboard': {
         title: `Nimiq Dashboard - ${SITE_NAME}`,
         description:
             'Live Nimiq network dashboard: NIM price, total staked, active accounts, transaction volume, supply and validator distribution, all in one view.',
         changefreq: 'hourly',
-        priority: '0.8',
-        breadcrumb: ['Tools', 'Dashboard'],
+        priority: '1.0',
     },
     '/calculator': {
         title: `Nimiq Staking Calculator - ${SITE_NAME}`,
@@ -73,7 +73,7 @@ const ROUTES = {
             'Search the Nimiq blockchain by block, transaction hash or wallet address, and follow new blocks and transfers as they are confirmed.',
         changefreq: 'hourly',
         priority: '0.7',
-        breadcrumb: ['Tools', 'Explorer'],
+        breadcrumb: ['Explorer'],
     },
     '/blocks': {
         title: `Blocks | Explorer - ${SITE_NAME}`,
@@ -81,7 +81,7 @@ const ROUTES = {
             'Browse the latest Nimiq blocks with producer, transaction count, size and timestamp, and open any block to see everything it contains.',
         changefreq: 'always',
         priority: '0.6',
-        breadcrumb: ['Tools', 'Explorer', 'Blocks'],
+        breadcrumb: ['Explorer', 'Blocks'],
     },
     '/transactions': {
         title: `Transactions | Explorer - ${SITE_NAME}`,
@@ -89,7 +89,7 @@ const ROUTES = {
             'Follow Nimiq transactions in real time: sender, recipient, amount and fee for every transfer confirmed on the network.',
         changefreq: 'always',
         priority: '0.6',
-        breadcrumb: ['Tools', 'Explorer', 'Transactions'],
+        breadcrumb: ['Explorer', 'Transactions'],
     },
     '/faq': {
         title: `FAQ - ${SITE_NAME}`,
@@ -214,7 +214,7 @@ function webSiteLd() {
 }
 
 function breadcrumbLd(trail, pathname) {
-    const items = [{ name: 'Home', item: `${SITE_URL}/staking` }];
+    const items = [{ name: 'Home', item: `${SITE_URL}/dashboard` }];
 
     trail.forEach((name, index) => {
         // Only the final crumb is a real destination; the intermediate ones are
@@ -336,11 +336,11 @@ function metaFor(pathname) {
         return { ...ROUTES[pathname], path: pathname, index: true };
     }
 
-    // The root redirects to /staking client-side, but a crawler sees whatever
+    // The root redirects to /dashboard client-side, but a crawler sees whatever
     // the server hands it first. Without this the most-linked URL on the domain
     // would fall through to the noindex default below.
     if (pathname === '/' || pathname === '') {
-        return { ...ROUTES['/staking'], path: '/staking', index: true };
+        return { ...ROUTES['/dashboard'], path: '/dashboard', index: true };
     }
 
     // /pools/list renders the same component as /pools, so it points its

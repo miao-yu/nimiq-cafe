@@ -49,6 +49,16 @@ export const ICONS = {
 
 export const navData: NavSectionProps['data'] = [
   /**
+   * Dashboard
+   *
+   * Alone at the top with no subheader: the domain root now serves this, so it
+   * is the site's home rather than one tool among several. A subheader here
+   * would file it under a category and undo that.
+   */
+  {
+    items: [{ title: 'Dashboard', path: paths.nimiqDashboard, icon: ICONS.dashboard }],
+  },
+  /**
    * Pool
    */
   {
@@ -73,22 +83,30 @@ export const navData: NavSectionProps['data'] = [
     ],
   },
   /**
-   * Explorer
+   * Tools
+   *
+   * Just the two calculators. They used to sit at the bottom of a seven-item
+   * Tools list, under the explorer pages, where nothing suggested they were
+   * self-contained things you open and use on their own.
    */
   {
     subheader: 'Tools',
     items: [
-      { title: 'Dashboard', path: paths.nimiqDashboard, icon: ICONS.dashboard },
-      {
-        title: 'Explorer',
-        path: paths.explorer,
-        icon: ICONS.explorer,
-      },
-      {
-        title: 'Pools',
-        path: paths.pools.root,
-        icon: ICONS.pools,
-      },
+      { title: 'Calculator', path: paths.calculator, icon: ICONS.parameter },
+      { title: 'Converter', path: paths.converter, icon: ICONS.banking },
+    ],
+  },
+  /**
+   * Explorer
+   *
+   * Split out of Tools. These four are all "browse the chain", and giving them
+   * their own heading is what let Tools shrink to the two utilities above.
+   */
+  {
+    subheader: 'Explorer',
+    items: [
+      { title: 'Explorer', path: paths.explorer, icon: ICONS.explorer },
+      { title: 'Pools', path: paths.pools.root, icon: ICONS.pools },
       {
         title: 'Blocks',
         path: paths.blocks,
@@ -99,18 +117,16 @@ export const navData: NavSectionProps['data'] = [
         path: paths.transactions,
         icon: <Iconify width={25} icon='mdi-pound' sx={{ mr: 1 }} />,
       },
-      { title: 'Calculator', path: paths.calculator, icon: ICONS.parameter },
-      { title: 'Converter', path: paths.converter, icon: ICONS.banking },
     ],
   },
   /**
    * Contact us
    */
-    {
-      subheader: 'Contact us',
-      items: [
-        { title: 'Telegram', path: 'https://t.me/+K76FZSRFP0hmZmYx', icon: ICONS.chat },
-        { title: 'Discord', path: 'https://discord.gg/zzu2RwsjcD', icon: ICONS.chat },
-      ],
-    },
+  {
+    subheader: 'Contact us',
+    items: [
+      { title: 'Telegram', path: 'https://t.me/+K76FZSRFP0hmZmYx', icon: ICONS.chat },
+      { title: 'Discord', path: 'https://discord.gg/zzu2RwsjcD', icon: ICONS.chat },
+    ],
+  },
 ];

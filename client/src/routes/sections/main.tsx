@@ -43,7 +43,9 @@ export const mainRoutes: RouteObject[] = [
   {
     element: CONFIG.auth.skip ? mainLayout() : <AuthGuard>{mainLayout()}</AuthGuard>,
     children: [
-      { path: '/', element: <Navigate to="/staking" replace /> },
+      // The site's home. Changed from /staking so the domain root opens on the
+      // network dashboard; server/seo.js resolves "/" to the same page.
+      { path: '/', element: <Navigate to="/dashboard" replace /> },
       { path: 'staking', element: <StakingPage /> },
       { path: 'faq', element: <FaqsPage /> },
       { path: 'staker/:address', element: <StakerPage /> },
