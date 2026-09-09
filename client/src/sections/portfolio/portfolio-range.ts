@@ -1,6 +1,41 @@
 import type { IPortfolioHistoryPoint } from 'src/types/portfolio';
 
+import { fNumber, fCurrency, fShortenNumber } from 'src/utils/format-number';
+
 // ----------------------------------------------------------------------
+
+/**
+ * Only compact a fiat figure once the digits stop carrying meaning.
+ *
+ * A portfolio is usually four or five digits, where "$27.5K" throws away the
+ * part someone is actually reading -- they know roughly what they hold and are
+ * looking for the exact number. Past a million the digits are noise and the
+ * axis has no room for them, so it switches. NIM amounts compact much sooner,
+ * because they run to tens of millions and nobody reads those digit by digit.
+ */
+const COMPACT_USD_ABOVE = 1_000_000;
+
+/** For axes: no cents, they never fit and never help at that size. */
+export function formatUsdAxis(value: number): string {
+  return Math.abs(value) >= COMPACT_USD_ABOVE
+    ? `$${fShortenNumber(value).toUpperCase()}`
+    : fCurrency(value, { maximumFractionDigits: 0 });
+}
+
+/** For tooltips: the exact figure, which is the reason to hover. */
+export function formatUsdExact(value: number): string {
+  return Math.abs(value) >= COMPACT_USD_ABOVE
+    ? `$${fShortenNumber(value).toUpperCase()}`
+    : fCurrency(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+export function formatNimAxis(value: number): string {
+  return `${fShortenNumber(value).toUpperCase()} NIM`;
+}
+
+export function formatNimExact(value: number): string {
+  return `${fNumber(value)} NIM`;
+}
 
 export type PortfolioRange = '1W' | '1M' | '3M' | '6M' | '1Y';
 

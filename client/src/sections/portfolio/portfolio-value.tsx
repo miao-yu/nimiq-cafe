@@ -7,12 +7,17 @@ import CardHeader from '@mui/material/CardHeader';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
 
-import { fNumber, fCurrency, fShortenNumber } from 'src/utils/format-number';
-
 import { Chart, useChart } from 'src/components/chart';
 
 import { PortfolioRangeToggle } from './portfolio-range-toggle';
-import { withinRange, toUsdSeries, formatRangeDate } from './portfolio-range';
+import {
+  withinRange,
+  toUsdSeries,
+  formatUsdAxis,
+  formatUsdExact,
+  formatNimExact,
+  formatRangeDate,
+} from './portfolio-range';
 
 import type { PortfolioRange } from './portfolio-range';
 
@@ -73,13 +78,15 @@ export function PortfolioValue({
       // thin them rather than overlapping into mush.
       tickAmount: Math.min(series.length, 8),
     },
-    yaxis: { labels: { formatter: (value: number) => fShortenNumber(value).toUpperCase() } },
+    yaxis: { labels: { formatter: (value: number) => formatUsdAxis(value) } },
     tooltip: {
       y: {
         formatter: (value: number, opts?: { dataPointIndex: number }) => {
           const point = opts ? series[opts.dataPointIndex] : undefined;
 
-          return point ? `${fCurrency(value)}  ·  ${fNumber(point.nim)} NIM` : fCurrency(value);
+          return point
+            ? `${formatUsdExact(value)}  ·  ${formatNimExact(point.nim)}`
+            : formatUsdExact(value);
         },
       },
     },

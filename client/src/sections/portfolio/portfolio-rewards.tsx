@@ -7,12 +7,16 @@ import CardHeader from '@mui/material/CardHeader';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
 
-import { fNumber, fShortenNumber } from 'src/utils/format-number';
-
 import { Chart, useChart } from 'src/components/chart';
 
-import { withinRange, formatDayLabel } from './portfolio-range';
 import { PortfolioRangeToggle } from './portfolio-range-toggle';
+import {
+  withinRange,
+  formatNimAxis,
+  formatDayLabel,
+  formatNimExact,
+  formatUsdExact,
+} from './portfolio-range';
 
 import type { PortfolioRange } from './portfolio-range';
 
@@ -29,6 +33,8 @@ type Props = CardProps & {
    * pays out rather than compounds, so nothing was restaked to read.
    */
   unavailable?: boolean;
+  /** Used to show the fiat equivalent alongside the NIM in tooltips. */
+  nimUsd?: number | null;
   /** Shared with the value chart and the stat cards -- one window per page. */
   range: PortfolioRange;
   onRangeChange: (range: PortfolioRange) => void;
@@ -40,6 +46,7 @@ export function PortfolioRewards({
   rewards,
   pending,
   unavailable,
+  nimUsd,
   range,
   onRangeChange,
   sx,
@@ -55,8 +62,17 @@ export function PortfolioRewards({
       type: 'category',
       tickAmount: Math.min(daily.length, 8),
     },
-    yaxis: { labels: { formatter: (value: number) => fShortenNumber(value).toUpperCase() } },
-    tooltip: { y: { formatter: (value: number) => `${fNumber(value)} NIM` } },
+    yaxis: { labels: { formatter: (value: number) => formatNimAxis(value) } },
+    tooltip: {
+      y: {
+        // The series is NIM; the fiat value is what most people are converting
+        // it to in their head anyway, so show both rather than making them.
+        formatter: (value: number) =>
+          nimUsd === null || nimUsd === undefined
+            ? formatNimExact(value)
+            : `${formatNimExact(value)}  ·  ${formatUsdExact(value * nimUsd)}`,
+      },
+    },
   });
 
   return (

@@ -153,6 +153,7 @@ export function PortfolioView() {
             rewards={portfolio.rewards ?? { total: 0, today: 0, last30Days: 0, daily: [] }}
             pending={portfolio.backfill.pending}
             unavailable={rewardsUnavailable}
+            nimUsd={nimUsd}
             range={range}
             onRangeChange={setRange}
           />
