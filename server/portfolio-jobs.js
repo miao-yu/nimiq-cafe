@@ -67,10 +67,28 @@ async function backfillRewards(pool, address, syncedTo) {
     const today = new Date().toISOString().slice(0, 10);
     const finished = rows.filter((row) => row.date < today);
 
-    const written = await portfolio.writeRewards(pool, address, finished);
+    let written = await portfolio.writeRewards(pool, address, finished);
+
+    // Only when Nimiq Watch found nothing, and only on a first backfill.
+    //
+    // Nothing restaked is exactly what a payout staker looks like, and they are
+    // the ones this rescues. A restaker already has their year from the fetch
+    // above, in about a second -- making them wait ~60s for the archive to say
+    // the same thing would undo the point of warming up on sign-in. The archive
+    // does not change, so there is no reason to repeat it nightly either.
+    let fromLedger = 0;
+    if (!syncedTo && finished.length === 0) {
+        const own = await backfillFromOwnLedger(pool, address).catch((error) => {
+            console.error(`own-ledger backfill failed for ${address}: ${error.message}`);
+            return { written: 0 };
+        });
+        fromLedger = own.written;
+        written += fromLedger;
+    }
+
     await portfolio.markBackfillSuccess(pool, address, syncedThrough());
 
-    return { written, ms: Date.now() - started, first: !syncedTo };
+    return { written, fromLedger, ms: Date.now() - started, first: !syncedTo };
 }
 
 /**
@@ -114,7 +132,12 @@ async function reconstructPast(pool, address, prices) {
         nimUsd: prices[day.date] === undefined ? null : prices[day.date],
     }));
 
-    const written = await portfolio.writeReconstructed(pool, address, rows);
+    // A truncated list means the oldest movements are missing, so the walk
+    // drifts further the further back it goes. For a staker paid every few
+    // minutes the 500 transactions available cover about five days of a
+    // two-year history -- reconstructing a year from that would produce a
+    // confident, wrong chart. An empty chart is the honest outcome.
+    const written = truncated ? 0 : await portfolio.writeReconstructed(pool, address, rows);
     await portfolio.markReconstructed(pool, address, truncated);
 
     return {
@@ -126,4 +149,62 @@ async function reconstructPast(pool, address, prices) {
     };
 }
 
-module.exports = { backfillRewards, reconstructPast, rpc, daysAgo, syncedThrough };
+/**
+ * Fill the same daily table from our own ledger.
+ *
+ * Nimiq Watch only knows about restakes. A staker taking rewards as payouts
+ * restakes nothing, so it returns an empty year for them and their chart stops
+ * at whatever pool.staker_rewards still holds -- about a month, since that
+ * table is rotated into pool.staker_rewards_archive.
+ *
+ * The archive has the full history and is simply too slow to read per request:
+ * a year is ~460k individual rewards and 64 seconds. Read once here, in the
+ * background, it becomes 360 pre-aggregated rows that the page reads in 2ms.
+ *
+ * Runs for every address we have a ledger for, not just payout ones. A staker
+ * who switched between restaking and payouts has both kinds of history, and
+ * writing ours last means it wins on any day both describe -- the ledger is
+ * what actually paid.
+ */
+async function backfillFromOwnLedger(pool, address, days = BACKFILL_DAYS) {
+    const started = Date.now();
+
+    const [rows] = await pool.query(
+        `SELECT DATE(created_at) AS reward_date, SUM(rewards) AS rewards
+         FROM (
+             SELECT created_at, rewards FROM pool.staker_rewards
+             WHERE staker = ? AND created_at >= CURDATE() - INTERVAL ? DAY AND created_at < CURDATE()
+             UNION ALL
+             SELECT created_at, rewards FROM pool.staker_rewards_archive
+             WHERE staker = ? AND created_at >= CURDATE() - INTERVAL ? DAY AND created_at < CURDATE()
+         ) AS combined
+         GROUP BY reward_date`,
+        [address, days, address, days]
+    );
+
+    if (!rows.length) {
+        return { written: 0, ms: Date.now() - started };
+    }
+
+    const validator = process.env.VALIDATOR_ADDRESS
+        || 'NQ83 4MVH 53Q4 AL3B Q097 55GJ LUQ3 GSF0 85B7';
+
+    const written = await portfolio.writeRewards(pool, address, rows.map((row) => ({
+        date: row.reward_date instanceof Date
+            ? row.reward_date.toISOString().slice(0, 10)
+            : String(row.reward_date).slice(0, 10),
+        validator,
+        rewards: Number(row.rewards) || 0,
+    })));
+
+    return { written, ms: Date.now() - started };
+}
+
+module.exports = {
+    backfillRewards,
+    backfillFromOwnLedger,
+    reconstructPast,
+    rpc,
+    daysAgo,
+    syncedThrough,
+};
