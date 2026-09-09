@@ -122,6 +122,7 @@ export function PortfolioView() {
           range={range}
           onRangeChange={setRange}
           nimUsd={nimUsd}
+          building={portfolio.backfill.historyPending}
         />
       </Box>
 

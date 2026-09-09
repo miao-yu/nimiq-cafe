@@ -283,14 +283,19 @@ async function getBackfillState(pool, addresses) {
 
     const [rows] = await pool.query(
         `SELECT MIN(rewards_synced_to) AS synced_to,
-                SUM(rewards_synced_to IS NULL) AS never_synced
+                SUM(rewards_synced_to IS NULL) AS never_synced,
+                SUM(history_reconstructed_at IS NULL) AS never_reconstructed
          FROM ${BUNDLE_TABLE} WHERE address IN (?)`,
         [addresses]
     );
 
     const row = rows[0] || {};
     return {
+        // The two jobs finish at different moments and drive different charts,
+        // so the page is told about them separately rather than being given one
+        // flag that is true for whichever is slower.
         pending: Number(row.never_synced || 0) > 0,
+        historyPending: Number(row.never_reconstructed || 0) > 0,
         syncedTo: row.synced_to ? String(row.synced_to).slice(0, 10) : null,
     };
 }

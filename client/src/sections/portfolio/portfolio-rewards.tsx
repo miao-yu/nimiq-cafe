@@ -5,6 +5,7 @@ import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardHeader from '@mui/material/CardHeader';
 import Typography from '@mui/material/Typography';
+import LinearProgress from '@mui/material/LinearProgress';
 
 import { fNumber, fShortenNumber } from 'src/utils/format-number';
 
@@ -64,9 +65,11 @@ export function PortfolioRewards({
         <Box sx={{ px: 3, pb: 3, pt: 1 }}>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             {pending
-              ? 'Still gathering your reward history from the chain. This runs overnight, so check back tomorrow.'
+              ? 'Gathering your reward history from the chain. This takes a few seconds.'
               : 'No rewards recorded in this range yet.'}
           </Typography>
+
+          {pending && <LinearProgress sx={{ mt: 2, maxWidth: 240 }} />}
         </Box>
       ) : (
         <Chart

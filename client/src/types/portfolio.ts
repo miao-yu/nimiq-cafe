@@ -52,8 +52,10 @@ export type IPortfolioRewards = {
 };
 
 export type IPortfolioBackfill = {
-  /** At least one address has never completed a backfill. */
+  /** Reward history is still being fetched for at least one address. */
   pending: boolean;
+  /** Past balances are still being reconstructed for at least one address. */
+  historyPending: boolean;
   syncedTo: string | null;
 };
 

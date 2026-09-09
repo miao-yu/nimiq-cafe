@@ -19,7 +19,17 @@ const swrOptions: SWRConfiguration = {
 export function useGetPortfolio() {
   const url = endpoints.portfolio.root;
 
-  const { data, isLoading, error, isValidating, mutate } = useSWR<IPortfolio>(url, fetcher, swrOptions);
+  const { data, isLoading, error, isValidating, mutate } = useSWR<IPortfolio>(url, fetcher, {
+    ...swrOptions,
+    /**
+     * A first sign-in builds a year of history in the background, in a couple
+     * of seconds. Without this the page would sit on its placeholders until
+     * somebody reloaded, which is a worse experience than the wait it replaced.
+     * Polling stops the moment both jobs report done.
+     */
+    refreshInterval: (latest) =>
+      latest?.backfill?.pending || latest?.backfill?.historyPending ? 3000 : 0,
+  });
 
   return useMemo(
     () => ({

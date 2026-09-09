@@ -5,6 +5,7 @@ import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardHeader from '@mui/material/CardHeader';
 import Typography from '@mui/material/Typography';
+import LinearProgress from '@mui/material/LinearProgress';
 
 import { fNumber, fCurrency, fShortenNumber } from 'src/utils/format-number';
 
@@ -25,6 +26,8 @@ type Props = CardProps & {
   onRangeChange: (range: PortfolioRange) => void;
   /** Used for days whose price was not recorded. */
   nimUsd: number | null;
+  /** True while past balances are still being reconstructed. */
+  building?: boolean;
 };
 
 /**
@@ -45,6 +48,7 @@ export function PortfolioValue({
   range,
   onRangeChange,
   nimUsd,
+  building,
   sx,
   ...other
 }: Props) {
@@ -89,10 +93,14 @@ export function PortfolioValue({
       {series.length < 2 ? (
         <Box sx={{ px: 3, pb: 3, pt: 1 }}>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {history.length === 0
-              ? 'Nothing recorded yet. Balances are snapshotted once a day, so this chart fills in from tomorrow.'
-              : 'Not enough days in this range yet to draw a trend.'}
+            {building
+              ? 'Reconstructing your balance history from the chain. This takes a few seconds.'
+              : history.length === 0
+                ? 'Nothing recorded yet. Balances are snapshotted once a day, so this fills in overnight.'
+                : 'Not enough days in this range yet to draw a trend.'}
           </Typography>
+
+          {building && <LinearProgress sx={{ mt: 2, maxWidth: 240 }} />}
         </Box>
       ) : (
         <Chart

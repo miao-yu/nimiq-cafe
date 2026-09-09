@@ -729,6 +729,7 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
             // that is a waiting state rather than an empty one.
             backfill: await portfolio.getBackfillState(pool, addresses).catch(() => ({
                 pending: false,
+                historyPending: false,
                 syncedTo: null,
             })),
             pitch: tier === 2 ? await portfolioPitch(accounts) : null,
