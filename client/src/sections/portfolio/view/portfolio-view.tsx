@@ -143,9 +143,11 @@ export function PortfolioView() {
           <PortfolioRewards
             title="Daily rewards"
             subheader={
-              portfolio.rewards?.source === 'nimiq-watch'
-                ? 'Recorded on chain, via Nimiq Watch'
-                : 'What your stake earned here, per day'
+              rewardsUnavailable
+                ? undefined
+                : portfolio.rewards?.source === 'nimiq-watch'
+                  ? 'Recorded on chain, via Nimiq Watch'
+                  : 'What your stake earned here, per day'
             }
             rewards={portfolio.rewards ?? { total: 0, today: 0, last30Days: 0, daily: [] }}
             pending={portfolio.backfill.pending}
