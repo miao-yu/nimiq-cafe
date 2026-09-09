@@ -4,7 +4,7 @@ import Box from '@mui/material/Box';
 import Alert from '@mui/material/Alert';
 import Typography from '@mui/material/Typography';
 
-import { fPercent, fCurrency, fShortenNumber } from 'src/utils/format-number';
+import { fCurrency, fShortenNumber } from 'src/utils/format-number';
 
 import { useGetPortfolio } from 'src/actions/portfolio';
 import { DashboardContent } from 'src/layouts/dashboard';
@@ -83,15 +83,9 @@ export function PortfolioView() {
 
         <PortfolioStat
           title={`Balance Change ${range}`}
-          primary={
-            change === null
-              ? '—'
-              : `${change.usd >= 0 ? '+' : ''}${fCurrency(change.usd)}${
-                  change.percent === null ? '' : ` (${fPercent(change.percent)})`
-                }`
-          }
-          secondary={change === null ? undefined : `${change.nim >= 0 ? '+' : ''}${nim(change.nim)}`}
-          direction={change === null ? null : change.usd >= 0 ? 'up' : 'down'}
+          primary={change === null ? '—' : `${change.usd >= 0 ? '+' : ''}${fCurrency(change.usd)}`}
+          percent={change?.percent ?? undefined}
+          percentNote={change === null ? undefined : `${change.nim >= 0 ? '+' : ''}${nim(change.nim)}`}
           note={change === null ? 'Needs two days of snapshots' : undefined}
         />
 
@@ -146,6 +140,8 @@ export function PortfolioView() {
             }
             rewards={portfolio.rewards ?? { total: 0, today: 0, last30Days: 0, daily: [] }}
             pending={portfolio.backfill.pending}
+            range={range}
+            onRangeChange={setRange}
           />
         </Box>
       )}

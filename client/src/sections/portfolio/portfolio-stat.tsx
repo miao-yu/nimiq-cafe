@@ -1,7 +1,12 @@
 import type { CardProps } from '@mui/material/Card';
 
+import { varAlpha } from 'minimal-shared/utils';
+
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
+import { useTheme } from '@mui/material/styles';
+
+import { fPercent } from 'src/utils/format-number';
 
 import { Iconify } from 'src/components/iconify';
 
@@ -9,68 +14,101 @@ import { Iconify } from 'src/components/iconify';
 
 type Props = CardProps & {
   title: string;
-  /** The fiat figure. What someone is actually here to read. */
+  /** The fiat figure. What someone opens this page to read. */
   primary: string;
-  /** The NIM behind it, kept because this is still a NIM product. */
+  /**
+   * A signed percentage, rendered as the same trending badge the Network
+   * page's Price card uses. Mutually exclusive with `secondary` in practice --
+   * a card shows one supporting line, not two.
+   */
+  percent?: number;
+  /** Muted text after the badge, where the Price card says "last day". */
+  percentNote?: string;
+  /** A plain supporting line, for cards with no percentage to show. */
   secondary?: string;
-  /** Signed figures colour and take an arrow; null leaves it plain. */
-  direction?: 'up' | 'down' | null;
   note?: string;
 };
 
 /**
- * A headline figure with its NIM equivalent underneath.
+ * A headline figure with one supporting line.
  *
- * Not AppWidgetSimple: that renders its second line with a hard-coded upward
- * arrow, which is wrong for a plain NIM amount and actively misleading on a
- * balance change that went down.
+ * Follows the Price card on /network: title in subtitle2, value in h3 and
+ * uncoloured, and the sign carried by a coloured badge underneath rather than
+ * by the number itself. Not AppWidgetSimple, which renders its second line with
+ * a hard-coded upward arrow -- wrong for a plain NIM amount and actively
+ * misleading on a change that went down.
  */
 export function PortfolioStat({
   title,
   primary,
+  percent,
+  percentNote,
   secondary,
-  direction = null,
   note,
   sx,
   ...other
 }: Props) {
-  const color =
-    direction === 'up' ? 'success.main' : direction === 'down' ? 'error.main' : 'text.primary';
+  const theme = useTheme();
+  const negative = percent !== undefined && percent < 0;
+
+  const renderTrending = () => (
+    <Box sx={{ gap: 0.5, display: 'flex', alignItems: 'center' }}>
+      <Box
+        component="span"
+        sx={{
+          width: 24,
+          height: 24,
+          display: 'flex',
+          borderRadius: '50%',
+          position: 'relative',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: varAlpha(theme.vars.palette.success.mainChannel, 0.16),
+          color: 'success.dark',
+          ...theme.applyStyles('dark', { color: 'success.light' }),
+          ...(negative && {
+            bgcolor: varAlpha(theme.vars.palette.error.mainChannel, 0.16),
+            color: 'error.dark',
+            ...theme.applyStyles('dark', { color: 'error.light' }),
+          }),
+        }}
+      >
+        <Iconify width={16} icon={negative ? 'eva:trending-down-fill' : 'eva:trending-up-fill'} />
+      </Box>
+
+      <Box component="span" sx={{ typography: 'subtitle2' }}>
+        {percent !== undefined && percent > 0 && '+'}
+        {fPercent(percent)}
+      </Box>
+
+      {percentNote && (
+        <Box component="span" sx={{ color: 'text.secondary', typography: 'body2' }}>
+          {percentNote}
+        </Box>
+      )}
+    </Box>
+  );
 
   return (
     <Card
       sx={[
-        { p: 3, display: 'flex', alignItems: 'center', zIndex: 'unset', overflow: 'unset' },
+        { p: 3, display: 'flex', alignItems: 'center' },
         ...(Array.isArray(sx) ? sx : [sx]),
       ]}
       {...other}
     >
       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-        <Box sx={{ typography: 'subtitle2', color: 'text.secondary' }}>{title}</Box>
+        <Box sx={{ typography: 'subtitle2' }}>{title}</Box>
 
-        <Box sx={{ mt: 1.5, mb: 0.5, typography: 'h3', color, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          {direction && (
-            <Iconify
-              width={22}
-              icon={
-                direction === 'up'
-                  ? 'solar:alt-arrow-up-bold-duotone'
-                  : 'solar:alt-arrow-down-bold-duotone'
-              }
-            />
-          )}
-          <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {primary}
-          </Box>
-        </Box>
+        <Box sx={{ my: 1.5, typography: 'h3' }}>{primary}</Box>
 
-        {secondary && (
+        {percent !== undefined && renderTrending()}
+
+        {percent === undefined && secondary && (
           <Box sx={{ typography: 'body2', color: 'text.secondary' }}>{secondary}</Box>
         )}
 
-        {note && (
-          <Box sx={{ mt: 0.5, typography: 'caption', color: 'text.disabled' }}>{note}</Box>
-        )}
+        {note && <Box sx={{ mt: 0.5, typography: 'caption', color: 'text.disabled' }}>{note}</Box>}
       </Box>
     </Card>
   );

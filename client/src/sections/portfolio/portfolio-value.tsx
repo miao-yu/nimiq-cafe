@@ -5,14 +5,13 @@ import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardHeader from '@mui/material/CardHeader';
 import Typography from '@mui/material/Typography';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 
 import { fNumber, fCurrency, fShortenNumber } from 'src/utils/format-number';
 
 import { Chart, useChart } from 'src/components/chart';
 
-import { withinRange, toUsdSeries, formatRangeDate, PORTFOLIO_RANGES } from './portfolio-range';
+import { PortfolioRangeToggle } from './portfolio-range-toggle';
+import { withinRange, toUsdSeries, formatRangeDate } from './portfolio-range';
 
 import type { PortfolioRange } from './portfolio-range';
 
@@ -75,31 +74,6 @@ export function PortfolioValue({
     },
   });
 
-  const renderRanges = () => (
-    <ToggleButtonGroup
-      exclusive
-      size="small"
-      value={range}
-      onChange={(_, next) => {
-        // null when the active button is clicked again -- keep the range.
-        if (next) {
-          onRangeChange(next as PortfolioRange);
-        }
-      }}
-      sx={{ border: 0, flexWrap: 'wrap' }}
-    >
-      {PORTFOLIO_RANGES.map((option) => (
-        <ToggleButton
-          key={option}
-          value={option}
-          sx={{ border: 0, borderRadius: 1, px: 1.25, typography: 'caption', fontWeight: 600 }}
-        >
-          {option}
-        </ToggleButton>
-      ))}
-    </ToggleButtonGroup>
-  );
-
   return (
     <Card sx={sx} {...other}>
       <CardHeader
@@ -109,7 +83,7 @@ export function PortfolioValue({
             ? `${derived} earlier ${derived === 1 ? 'day' : 'days'} reconstructed from on-chain activity`
             : subheader
         }
-        action={renderRanges()}
+        action={<PortfolioRangeToggle value={range} onChange={onRangeChange} />}
       />
 
       {series.length < 2 ? (
