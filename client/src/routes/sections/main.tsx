@@ -9,6 +9,7 @@ import { DashboardLayout } from 'src/layouts/dashboard';
 import { LoadingScreen } from 'src/components/loading-screen';
 
 import { AuthGuard } from 'src/auth/guard';
+import { useAuthContext } from 'src/auth/hooks';
 
 // ----------------------------------------------------------------------
 
@@ -32,6 +33,29 @@ const ConverterPage = lazy(() => import('src/pages/converter'));
 
 // ----------------------------------------------------------------------
 
+/**
+ * The domain root.
+ *
+ * Portfolio when signed in, Network otherwise. Not an unconditional redirect
+ * to /portfolio: that page is behind AuthGuard, so every signed-out visitor --
+ * and every crawler, which is never signed in -- would land on a sign-in form,
+ * and the site's most-linked URL would resolve to a noindex page. server/seo.js
+ * still answers "/" with the Network metadata for the same reason: what a
+ * crawler actually gets here is the Network page.
+ */
+function RootRedirect() {
+  const { authenticated, loading } = useAuthContext();
+
+  // checkUserSession may be mid-flight asking /api/auth/me whether the shared
+  // reef.nimiq.cafe cookie names anybody. Redirecting before it answers would
+  // send a signed-in arrival to Network.
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  return <Navigate to={authenticated ? '/portfolio' : '/network'} replace />;
+}
+
 const mainLayout = () => (
   <DashboardLayout>
     <Suspense fallback={<LoadingScreen />}>
@@ -44,8 +68,7 @@ export const mainRoutes: RouteObject[] = [
   {
     element: CONFIG.auth.skip ? mainLayout() : <AuthGuard>{mainLayout()}</AuthGuard>,
     children: [
-      // The site's home; server/seo.js resolves "/" to the same page.
-      { path: '/', element: <Navigate to="/network" replace /> },
+      { path: '/', element: <RootRedirect /> },
       { path: 'staking', element: <StakingPage /> },
       { path: 'faq', element: <FaqsPage /> },
       { path: 'staker/:address', element: <StakerPage /> },

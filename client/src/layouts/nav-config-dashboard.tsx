@@ -62,10 +62,14 @@ export const navData: NavSectionProps['data'] = [
    */
   {
     items: [
-      { title: 'Network', path: paths.network, icon: ICONS.dashboard },
+      // Portfolio first: for a signed-in visitor it is the reason to come back,
+      // and the domain root now sends them here. Network stays directly below
+      // because it is where everyone else lands.
+      //
       // Renders for everyone; the route itself is guarded, so a signed-out
       // click lands on sign-in rather than a broken page.
       { title: 'Portfolio', path: paths.portfolio, icon: ICONS.banking },
+      { title: 'Network', path: paths.network, icon: ICONS.dashboard },
     ],
   },
   /**
