@@ -37,6 +37,18 @@ export type IPortfolioRewards = {
   today: number;
   last30Days: number;
   daily: { date: string; rewards: number }[];
+  /**
+   * Absent when the figures come from our own ledger. 'nimiq-watch' means they
+   * were backfilled from the chain for a staker whose validator is not ours,
+   * which the page says out loud rather than passing off as our own record.
+   */
+  source?: 'nimiq-watch';
+};
+
+export type IPortfolioBackfill = {
+  /** At least one address has never completed a backfill. */
+  pending: boolean;
+  syncedTo: string | null;
 };
 
 export type IPortfolioPitch = {
@@ -76,5 +88,6 @@ export type IPortfolio = {
   history: IPortfolioHistoryPoint[];
   rewards: IPortfolioRewards | null;
   payouts: unknown[] | null;
+  backfill: IPortfolioBackfill;
   pitch: IPortfolioPitch | null;
 };

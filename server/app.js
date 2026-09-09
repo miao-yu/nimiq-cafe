@@ -644,6 +644,46 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
 
             const lists = await Promise.all(withUs.map((a) => getStakerPayouts(a.address).catch(() => [])));
             payouts = lists.flat();
+        } else if (tier === 2) {
+            // Staking, but not here, so pool.staker_rewards knows nothing about
+            // them. These rows are backfilled from Nimiq Watch by
+            // scripts/backfillPortfolioRewards.js -- the same source the Nimiq
+            // Wallet uses for its own rewards chart.
+            const rows = await portfolio
+                .getExternalRewards(pool, addresses, PORTFOLIO_HISTORY_DAYS)
+                .catch((error) => {
+                    console.error('getExternalRewards failed:', error.message);
+                    return [];
+                });
+
+            const byDate = {};
+            rows.forEach((row) => {
+                const date = row.reward_date instanceof Date
+                    ? row.reward_date.toISOString().slice(0, 10)
+                    : String(row.reward_date).slice(0, 10);
+                byDate[date] = (byDate[date] || 0) + Number(row.rewards || 0) / LUNA;
+            });
+
+            const daily = Object.keys(byDate).sort().map((date) => ({ date, rewards: byDate[date] }));
+
+            if (daily.length) {
+                const cutoff = new Date();
+                cutoff.setDate(cutoff.getDate() - 30);
+                const cutoffKey = cutoff.toISOString().slice(0, 10);
+                const todayKey = new Date().toISOString().slice(0, 10);
+
+                rewards = {
+                    total: daily.reduce((sum, day) => sum + day.rewards, 0),
+                    today: byDate[todayKey] || 0,
+                    last30Days: daily
+                        .filter((day) => day.date >= cutoffKey)
+                        .reduce((sum, day) => sum + day.rewards, 0),
+                    daily,
+                    // Labelled, because it is a third party's view of the chain
+                    // rather than our own ledger, and the page should say so.
+                    source: 'nimiq-watch',
+                };
+            }
         }
 
         res.json({
@@ -658,6 +698,13 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
             history: series,
             rewards,
             payouts,
+            // Drives the "still gathering your history" note: an address that
+            // has never completed a backfill has no history to show yet, and
+            // that is a waiting state rather than an empty one.
+            backfill: await portfolio.getBackfillState(pool, addresses).catch(() => ({
+                pending: false,
+                syncedTo: null,
+            })),
             pitch: tier === 2 ? await portfolioPitch(accounts) : null,
         });
     } catch (error) {

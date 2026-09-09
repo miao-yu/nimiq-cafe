@@ -35,13 +35,13 @@ export function PortfolioPitch({ pitch, sx, ...other }: Props) {
       <Stack spacing={2}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Iconify width={24} icon="solar:chart-square-bold-duotone" />
-          <Typography variant="h6">Your reward history lives with your validator</Typography>
+          <Typography variant="h6">You could keep more of it</Typography>
         </Box>
 
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          You are staking {fShortenNumber(pitch.totalStaked).toUpperCase()} NIM, but not with us — so we have no
-          per-day reward record to chart for you. Stakers here get daily rewards, payout history
-          and realised returns on this page.
+          You are staking {fShortenNumber(pitch.totalStaked).toUpperCase()} NIM elsewhere. The
+          rewards above are what the chain paid you; the fee below is what your validator kept
+          out of them.
         </Typography>
 
         <Box

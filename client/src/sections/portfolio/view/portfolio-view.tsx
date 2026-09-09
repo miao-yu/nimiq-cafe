@@ -101,7 +101,13 @@ export function PortfolioView() {
           title={`Rewards ${range}`}
           primary={rangeRewards === null ? '—' : usd(rangeRewards)}
           secondary={rangeRewards === null ? undefined : nim(rangeRewards)}
-          note={rangeRewards === null ? 'Only for stake held here' : undefined}
+          note={
+            rangeRewards !== null
+              ? undefined
+              : portfolio.backfill.pending
+                ? 'Still gathering your history'
+                : 'Nothing staked yet'
+          }
         />
       </Box>
 
@@ -125,19 +131,30 @@ export function PortfolioView() {
         />
       </Box>
 
-      {tier === 2 && portfolio.pitch && (
-        <Box sx={{ mb: 3 }}>
-          <PortfolioPitch pitch={portfolio.pitch} />
-        </Box>
-      )}
-
-      {tier === 3 && portfolio.rewards && (
+      {/* Rewards for anyone staking, wherever they stake. Ours comes from the
+          pool ledger; a staker with another validator gets the same chart
+          backfilled from the chain. Rendered while the backfill is still
+          running too, so they see that it is coming rather than nothing. */}
+      {tier >= 2 && (portfolio.rewards || portfolio.backfill.pending) && (
         <Box sx={{ mb: 3 }}>
           <PortfolioRewards
             title="Daily rewards"
-            subheader="What your stake earned here, per day"
-            rewards={portfolio.rewards}
+            subheader={
+              portfolio.rewards?.source === 'nimiq-watch'
+                ? 'Recorded on chain, via Nimiq Watch'
+                : 'What your stake earned here, per day'
+            }
+            rewards={portfolio.rewards ?? { total: 0, today: 0, last30Days: 0, daily: [] }}
+            pending={portfolio.backfill.pending}
           />
+        </Box>
+      )}
+
+      {/* Kept for tier 2 even now that they have a chart: the numbers above are
+          what they earned, this is what the fee difference costs them. */}
+      {tier === 2 && portfolio.pitch && (
+        <Box sx={{ mb: 3 }}>
+          <PortfolioPitch pitch={portfolio.pitch} />
         </Box>
       )}
 

@@ -18,10 +18,11 @@ type Props = CardProps & {
   title?: string;
   subheader?: string;
   rewards: IPortfolioRewards;
+  /** True while the nightly backfill has yet to reach every address. */
+  pending?: boolean;
 };
 
-/** Tier 3 only: this history exists because the pool records it per staker. */
-export function PortfolioRewards({ title, subheader, rewards, sx, ...other }: Props) {
+export function PortfolioRewards({ title, subheader, rewards, pending, sx, ...other }: Props) {
   const chartOptions = useChart({
     xaxis: {
       // "2026-09-08" is too wide to repeat across an axis, and the year is the
@@ -41,7 +42,9 @@ export function PortfolioRewards({ title, subheader, rewards, sx, ...other }: Pr
       {rewards.daily.length < 2 ? (
         <Box sx={{ px: 3, pb: 3, pt: 1 }}>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            Rewards start appearing here once your stake has been through a few payout cycles.
+            {pending
+              ? 'Still gathering your reward history from the chain. This runs overnight, so check back tomorrow.'
+              : 'Rewards start appearing here once your stake has been through a few payout cycles.'}
           </Typography>
         </Box>
       ) : (

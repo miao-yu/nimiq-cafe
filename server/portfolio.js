@@ -181,8 +181,128 @@ async function getSnapshotTargets(pool) {
     return rows.map((row) => row.address);
 }
 
+const REWARDS_TABLE = 'pool.portfolio_rewards';
+
+/** Upsert backfilled daily rewards. Re-running a day overwrites it. */
+async function writeRewards(pool, address, rows) {
+    if (!rows.length) {
+        return 0;
+    }
+
+    const key = canonical(address);
+    const values = rows.map((row) => [key, row.date, row.validator, row.rewards]);
+
+    // One statement rather than a row at a time: a year is ~360 rows per
+    // validator and the round trips dominate otherwise.
+    await pool.query(
+        `INSERT INTO ${REWARDS_TABLE} (address, reward_date, validator, rewards)
+         VALUES ?
+         ON DUPLICATE KEY UPDATE rewards = VALUES(rewards)`,
+        [values]
+    );
+
+    return rows.length;
+}
+
+/**
+ * Addresses due a backfill, neediest first.
+ *
+ * Never-synced addresses come before stale ones, so somebody who just signed in
+ * is not stuck behind a queue of routine top-ups. Failures back off by doubling
+ * hours, capped, so a permanently broken address cannot occupy the run forever.
+ */
+async function getBackfillCandidates(pool, limit) {
+    const [rows] = await pool.query(
+        `SELECT address, rewards_synced_to, rewards_failures
+         FROM ${BUNDLE_TABLE}
+         WHERE (rewards_synced_to IS NULL OR rewards_synced_to < CURDATE())
+           AND (
+             rewards_attempted_at IS NULL
+             OR rewards_attempted_at < NOW() - INTERVAL LEAST(POW(2, rewards_failures), 168) HOUR
+           )
+         ORDER BY (rewards_synced_to IS NOT NULL), rewards_synced_to ASC, first_seen ASC
+         LIMIT ?`,
+        [limit]
+    );
+    return rows;
+}
+
+/** Stamped before the request, so a crashed run still backs off. */
+async function markBackfillAttempt(pool, address) {
+    await pool.query(
+        `UPDATE ${BUNDLE_TABLE} SET rewards_attempted_at = NOW() WHERE address = ?`,
+        [canonical(address)]
+    );
+}
+
+async function markBackfillSuccess(pool, address, syncedTo) {
+    await pool.query(
+        `UPDATE ${BUNDLE_TABLE}
+         SET rewards_synced_to = ?, rewards_synced_at = NOW(), rewards_failures = 0
+         WHERE address = ?`,
+        [syncedTo, canonical(address)]
+    );
+}
+
+async function markBackfillFailure(pool, address) {
+    await pool.query(
+        `UPDATE ${BUNDLE_TABLE}
+         SET rewards_failures = LEAST(rewards_failures + 1, 10)
+         WHERE address = ?`,
+        [canonical(address)]
+    );
+}
+
+/** Backfilled rewards for a set of addresses, oldest first. */
+async function getExternalRewards(pool, addresses, days) {
+    if (!addresses.length) {
+        return [];
+    }
+
+    const [rows] = await pool.query(
+        `SELECT address, reward_date, validator, rewards
+         FROM ${REWARDS_TABLE}
+         WHERE address IN (?) AND reward_date >= CURDATE() - INTERVAL ? DAY
+         ORDER BY reward_date ASC`,
+        [addresses, days]
+    );
+    return rows;
+}
+
+/**
+ * Whether the page should say it is still gathering history.
+ *
+ * Pending means at least one address has never completed a backfill -- the
+ * chart would be empty or partial through no fault of the data.
+ */
+async function getBackfillState(pool, addresses) {
+    if (!addresses.length) {
+        return { pending: false, syncedTo: null };
+    }
+
+    const [rows] = await pool.query(
+        `SELECT MIN(rewards_synced_to) AS synced_to,
+                SUM(rewards_synced_to IS NULL) AS never_synced
+         FROM ${BUNDLE_TABLE} WHERE address IN (?)`,
+        [addresses]
+    );
+
+    const row = rows[0] || {};
+    return {
+        pending: Number(row.never_synced || 0) > 0,
+        syncedTo: row.synced_to ? String(row.synced_to).slice(0, 10) : null,
+    };
+}
+
 module.exports = {
     canonical,
+    writeRewards,
+    getBackfillCandidates,
+    markBackfillAttempt,
+    markBackfillSuccess,
+    markBackfillFailure,
+    getExternalRewards,
+    getBackfillState,
     touchAccount,
     getBundleAddresses,
     linkAddress,
