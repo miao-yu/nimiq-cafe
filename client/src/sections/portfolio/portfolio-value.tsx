@@ -90,9 +90,11 @@ export function PortfolioValue({
       <CardHeader
         title={title}
         subheader={
-          derived
-            ? `${derived} earlier ${derived === 1 ? 'day' : 'days'} reconstructed from on-chain activity`
-            : subheader
+          unreconstructable && derived
+            ? `Only the last ${derived} ${derived === 1 ? 'day' : 'days'} could be reconstructed — too many transactions to go further back`
+            : derived
+              ? `${derived} earlier ${derived === 1 ? 'day' : 'days'} reconstructed from on-chain activity`
+              : subheader
         }
         action={<PortfolioRangeToggle value={range} onChange={onRangeChange} />}
       />
@@ -103,7 +105,7 @@ export function PortfolioValue({
             {building
               ? 'Reconstructing your balance history from the chain. This takes a few seconds.'
               : unreconstructable && history.length < 2
-                ? 'Your rewards arrive as thousands of small payouts — more transactions than the chain will hand back in one request — so your past balances could not be worked out reliably. This chart starts from today and builds up daily.'
+                ? 'Your rewards arrive as thousands of small payouts, which is more transactions than the chain hands back in one request, so only the most recent days could be worked out. The chart fills in a day at a time from here.'
                 : history.length === 0
                   ? 'Nothing recorded yet. Balances are snapshotted once a day, so this fills in overnight.'
                   : 'Not enough days in this range yet to draw a trend.'}

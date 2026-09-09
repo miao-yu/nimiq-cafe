@@ -8,7 +8,7 @@
 const nimiqwatch = require('./nimiqwatch');
 const nimiqhub = require('./nimiqhub');
 const portfolio = require('./portfolio');
-const { reconstructHistory } = require('./reconstruct');
+const { reconstructHistory, dayKey } = require('./reconstruct');
 
 const BACKFILL_DAYS = Number(process.env.PORTFOLIO_BACKFILL_DAYS || 365);
 const HISTORY_DAYS = Number(process.env.PORTFOLIO_RECONSTRUCT_DAYS || 365);
@@ -132,20 +132,35 @@ async function reconstructPast(pool, address, prices) {
         nimUsd: prices[day.date] === undefined ? null : prices[day.date],
     }));
 
-    // A truncated list means the oldest movements are missing, so the walk
-    // drifts further the further back it goes. For a staker paid every few
-    // minutes the 500 transactions available cover about five days of a
-    // two-year history -- reconstructing a year from that would produce a
-    // confident, wrong chart. An empty chart is the honest outcome.
-    const written = truncated ? 0 : await portfolio.writeReconstructed(pool, address, rows);
+    // A truncated list is missing the *oldest* movements, not all of them --
+    // the API returns the most recent first. The walk subtracts forwards-in-time
+    // deltas to reach each earlier day, so every day inside the window we do
+    // have complete data for is exact; only days beyond it drift.
+    //
+    // So rather than discarding the lot, keep what is provably covered. The
+    // floor is the day after the oldest transaction seen: that oldest day may
+    // itself have earlier transactions that were cut off, but every day after
+    // it is whole. For a staker paid every few minutes that rescues four or
+    // five real days instead of showing nothing until snapshots accumulate.
+    let usable = rows;
+    let coveredFrom = null;
+
+    if (truncated && transactions.length) {
+        const oldest = Math.min(...transactions.map((tx) => Number(tx.timestamp) || 0));
+        coveredFrom = dayKey(oldest + 24 * 60 * 60 * 1000);
+        usable = rows.filter((row) => row.date >= coveredFrom);
+    }
+
+    const written = await portfolio.writeReconstructed(pool, address, usable);
     await portfolio.markReconstructed(pool, address, truncated);
 
     return {
         written,
         ms: Date.now() - started,
         truncated,
-        underflows: rows.filter((row) => row.underflow).length,
-        priced: rows.filter((row) => row.nimUsd !== null).length,
+        coveredFrom,
+        underflows: usable.filter((row) => row.underflow).length,
+        priced: usable.filter((row) => row.nimUsd !== null).length,
     };
 }
 
