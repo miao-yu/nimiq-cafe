@@ -131,6 +131,7 @@ export function PortfolioView() {
           onRangeChange={setRange}
           nimUsd={nimUsd}
           building={portfolio.backfill.historyPending}
+          unreconstructable={portfolio.backfill.historyTruncated}
         />
       </Box>
 

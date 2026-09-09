@@ -28,6 +28,12 @@ type Props = CardProps & {
   nimUsd: number | null;
   /** True while past balances are still being reconstructed. */
   building?: boolean;
+  /**
+   * The reconstruction was refused: this address has more transactions than the
+   * chain will return in one request, so walking its balance backwards would
+   * have drifted. Nothing to show but the days recorded from here on.
+   */
+  unreconstructable?: boolean;
 };
 
 /**
@@ -49,6 +55,7 @@ export function PortfolioValue({
   onRangeChange,
   nimUsd,
   building,
+  unreconstructable,
   sx,
   ...other
 }: Props) {
@@ -95,9 +102,11 @@ export function PortfolioValue({
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             {building
               ? 'Reconstructing your balance history from the chain. This takes a few seconds.'
-              : history.length === 0
-                ? 'Nothing recorded yet. Balances are snapshotted once a day, so this fills in overnight.'
-                : 'Not enough days in this range yet to draw a trend.'}
+              : unreconstructable && history.length < 2
+                ? 'Your rewards arrive as thousands of small payouts — more transactions than the chain will hand back in one request — so your past balances could not be worked out reliably. This chart starts from today and builds up daily.'
+                : history.length === 0
+                  ? 'Nothing recorded yet. Balances are snapshotted once a day, so this fills in overnight.'
+                  : 'Not enough days in this range yet to draw a trend.'}
           </Typography>
 
           {building && <LinearProgress sx={{ mt: 2, maxWidth: 240 }} />}
