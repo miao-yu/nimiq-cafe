@@ -10,6 +10,8 @@ import { fNumber, fShortenNumber } from 'src/utils/format-number';
 
 import { Chart, useChart } from 'src/components/chart';
 
+import { formatDayLabel } from './portfolio-range';
+
 // ----------------------------------------------------------------------
 
 type Props = CardProps & {
@@ -21,7 +23,13 @@ type Props = CardProps & {
 /** Tier 3 only: this history exists because the pool records it per staker. */
 export function PortfolioRewards({ title, subheader, rewards, sx, ...other }: Props) {
   const chartOptions = useChart({
-    xaxis: { categories: rewards.daily.map((day) => day.date), type: 'category' },
+    xaxis: {
+      // "2026-09-08" is too wide to repeat across an axis, and the year is the
+      // same on every tick anyway.
+      categories: rewards.daily.map((day) => formatDayLabel(day.date)),
+      type: 'category',
+      tickAmount: Math.min(rewards.daily.length, 8),
+    },
     yaxis: { labels: { formatter: (value: number) => fShortenNumber(value).toUpperCase() } },
     tooltip: { y: { formatter: (value: number) => `${fNumber(value)} NIM` } },
   });

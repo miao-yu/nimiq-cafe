@@ -2,18 +2,16 @@ import type { IPortfolioHistoryPoint } from 'src/types/portfolio';
 
 // ----------------------------------------------------------------------
 
-export type PortfolioRange = '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
+export type PortfolioRange = '1W' | '1M' | '3M' | '6M' | '1Y';
 
-export const PORTFOLIO_RANGES: PortfolioRange[] = ['1W', '1M', '3M', '6M', '1Y', 'ALL'];
+export const PORTFOLIO_RANGES: PortfolioRange[] = ['1W', '1M', '3M', '6M', '1Y'];
 
-/** null means every snapshot there is. */
-const RANGE_DAYS: Record<PortfolioRange, number | null> = {
+const RANGE_DAYS: Record<PortfolioRange, number> = {
   '1W': 7,
   '1M': 30,
   '3M': 90,
   '6M': 180,
   '1Y': 365,
-  ALL: null,
 };
 
 /**
@@ -21,7 +19,7 @@ const RANGE_DAYS: Record<PortfolioRange, number | null> = {
  * to month and year. Below that the day is the point of the chart.
  */
 export function isLongRange(range: PortfolioRange): boolean {
-  return range === '1Y' || range === 'ALL';
+  return range === '1Y';
 }
 
 export function formatRangeDate(date: string, range: PortfolioRange): string {
@@ -35,13 +33,18 @@ export function formatRangeDate(date: string, range: PortfolioRange): string {
     isLongRange(range) ? { month: 'short', year: 'numeric' } : { month: 'short', day: 'numeric' });
 }
 
+/** A day label without the year, for axes where the year is noise. */
+export function formatDayLabel(date: string): string {
+  const parsed = new Date(`${date}T00:00:00`);
+
+  return Number.isNaN(parsed.getTime())
+    ? date
+    : parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 /** Rows are `{ date: 'YYYY-MM-DD' }`; comparing the strings is enough. */
 export function withinRange<T extends { date: string }>(rows: T[], range: PortfolioRange): T[] {
   const days = RANGE_DAYS[range];
-
-  if (days === null) {
-    return rows;
-  }
 
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
