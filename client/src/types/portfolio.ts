@@ -56,6 +56,12 @@ export type IPortfolioBackfill = {
   pending: boolean;
   /** Past balances are still being reconstructed for at least one address. */
   historyPending: boolean;
+  /**
+   * The reconstruction was refused because the transaction list came back at
+   * its limit. In practice: an address paid in many small transfers, which is
+   * what a staker on payouts rather than restaking looks like.
+   */
+  historyTruncated: boolean;
   syncedTo: string | null;
 };
 

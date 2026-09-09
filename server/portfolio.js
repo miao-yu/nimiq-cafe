@@ -284,7 +284,8 @@ async function getBackfillState(pool, addresses) {
     const [rows] = await pool.query(
         `SELECT MIN(rewards_synced_to) AS synced_to,
                 SUM(rewards_synced_to IS NULL) AS never_synced,
-                SUM(history_reconstructed_at IS NULL) AS never_reconstructed
+                SUM(history_reconstructed_at IS NULL) AS never_reconstructed,
+                SUM(history_truncated) AS truncated
          FROM ${BUNDLE_TABLE} WHERE address IN (?)`,
         [addresses]
     );
@@ -296,6 +297,11 @@ async function getBackfillState(pool, addresses) {
         // flag that is true for whichever is slower.
         pending: Number(row.never_synced || 0) > 0,
         historyPending: Number(row.never_reconstructed || 0) > 0,
+        // The transaction list came back at its limit, so the balance walk was
+        // refused. In practice this means an address paid in many small
+        // transfers -- a staker on payouts rather than restaking -- which is
+        // also why it has no restake history to chart.
+        historyTruncated: Number(row.truncated || 0) > 0,
         syncedTo: row.synced_to ? String(row.synced_to).slice(0, 10) : null,
     };
 }

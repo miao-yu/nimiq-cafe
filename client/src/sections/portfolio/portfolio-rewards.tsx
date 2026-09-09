@@ -22,8 +22,13 @@ type Props = CardProps & {
   title?: string;
   subheader?: string;
   rewards: IPortfolioRewards;
-  /** True while the nightly backfill has yet to reach every address. */
+  /** True while the backfill has yet to reach every address. */
   pending?: boolean;
+  /**
+   * No reward history is obtainable: the stake sits with another validator that
+   * pays out rather than compounds, so nothing was restaked to read.
+   */
+  unavailable?: boolean;
   /** Shared with the value chart and the stat cards -- one window per page. */
   range: PortfolioRange;
   onRangeChange: (range: PortfolioRange) => void;
@@ -34,6 +39,7 @@ export function PortfolioRewards({
   subheader,
   rewards,
   pending,
+  unavailable,
   range,
   onRangeChange,
   sx,
@@ -66,7 +72,9 @@ export function PortfolioRewards({
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             {pending
               ? 'Gathering your reward history from the chain. This takes a few seconds.'
-              : 'No rewards recorded in this range yet.'}
+              : unavailable
+                ? 'Your validator pays rewards out as transfers rather than compounding them into your stake. Only compounded rewards leave a record on chain that we can read back, so there is no history to chart here. Stakers with us get a full daily record.'
+                : 'No rewards recorded in this range yet.'}
           </Typography>
 
           {pending && <LinearProgress sx={{ mt: 2, maxWidth: 240 }} />}

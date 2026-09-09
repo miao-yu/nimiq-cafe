@@ -730,6 +730,7 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
             backfill: await portfolio.getBackfillState(pool, addresses).catch(() => ({
                 pending: false,
                 historyPending: false,
+                historyTruncated: false,
                 syncedTo: null,
             })),
             pitch: tier === 2 ? await portfolioPitch(accounts) : null,

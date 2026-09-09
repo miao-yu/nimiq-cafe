@@ -57,6 +57,12 @@ export function PortfolioView() {
   const change = balanceChange(portfolio.history, range, nimUsd);
   const rangeRewards = portfolio.rewards ? rewardsInRange(portfolio.rewards.daily, range) : null;
 
+  // Staking, backfill finished, still nothing to show. The stake is with a
+  // validator that pays out rather than compounds, so there is no restake
+  // history in existence for us to have fetched.
+  const rewardsUnavailable =
+    tier >= 2 && !portfolio.rewards && !portfolio.backfill.pending;
+
   return (
     <DashboardContent maxWidth={false}>
       <Typography variant="h2" component="h1" sx={{ mb: 1 }}>
@@ -100,7 +106,9 @@ export function PortfolioView() {
               ? undefined
               : portfolio.backfill.pending
                 ? 'Still gathering your history'
-                : 'Nothing staked yet'
+                : rewardsUnavailable
+                  ? 'Not recorded by your validator'
+                  : 'Nothing staked yet'
           }
         />
       </Box>
@@ -130,7 +138,7 @@ export function PortfolioView() {
           pool ledger; a staker with another validator gets the same chart
           backfilled from the chain. Rendered while the backfill is still
           running too, so they see that it is coming rather than nothing. */}
-      {tier >= 2 && (portfolio.rewards || portfolio.backfill.pending) && (
+      {tier >= 2 && (
         <Box sx={{ mb: 3 }}>
           <PortfolioRewards
             title="Daily rewards"
@@ -141,6 +149,7 @@ export function PortfolioView() {
             }
             rewards={portfolio.rewards ?? { total: 0, today: 0, last30Days: 0, daily: [] }}
             pending={portfolio.backfill.pending}
+            unavailable={rewardsUnavailable}
             range={range}
             onRangeChange={setRange}
           />
