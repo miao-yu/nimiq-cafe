@@ -443,6 +443,11 @@ app.post('/api/settings', authenticateToken, async (req, res) => {
 
 const LUNA = 100000;
 
+// The range selector on /portfolio runs to ALL, so the server hands over
+// everything once and the client slices it. One row per address per day makes
+// even a decade cheap, and it saves a round trip on every range change.
+const PORTFOLIO_HISTORY_DAYS = 3650;
+
 /** Chain state for one address, shaped for the portfolio view. */
 async function portfolioAccount(address) {
     const [account, staker] = await Promise.all([
@@ -584,7 +589,7 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
 
         const [priceInfo, history] = await Promise.all([
             getPriceInfo().catch(() => null),
-            portfolio.getSnapshots(pool, addresses, 90).catch((error) => {
+            portfolio.getSnapshots(pool, addresses, PORTFOLIO_HISTORY_DAYS).catch((error) => {
                 console.error('getSnapshots failed:', error.message);
                 return [];
             }),
@@ -613,7 +618,9 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
                     getStakerTotalRewards(account.address).catch(() => 0),
                     getStakerTodayRewards(account.address).catch(() => 0),
                     getStakerLast30DaysRewards(account.address).catch(() => 0),
-                    getStakerDailyRewards(account.address).catch(() => []),
+                    // Matches the widest range the selector offers, so ALL is
+                    // a client-side slice rather than another round trip.
+                    getStakerDailyRewards(account.address, PORTFOLIO_HISTORY_DAYS).catch(() => []),
                 ]);
                 return { address: account.address, total, today, last30, daily: list };
             }));
@@ -1851,7 +1858,12 @@ async function getTransactionByHash(hash) {
     return getTransactionByHashData.result ? getTransactionByHashData.result.data : null;
 }
 
-async function getStakerDailyRewards(address) {
+/**
+ * `days` is a window, not a page size. /api/dailyrewards keeps the 30 it always
+ * had; the portfolio asks for far more, because its range selector goes out to
+ * a year and beyond and the sums under it have to cover whatever is chosen.
+ */
+async function getStakerDailyRewards(address, days = 30) {
     const [dailyRewards] = await pool.query(
         `SELECT 
             DATE(created_at) AS reward_date,
@@ -1860,13 +1872,13 @@ async function getStakerDailyRewards(address) {
             pool.staker_rewards 
         WHERE 
             staker = ? 
-            AND created_at >= CURDATE() - INTERVAL 30 DAY 
+            AND created_at >= CURDATE() - INTERVAL ? DAY 
             AND created_at < CURDATE() 
         GROUP BY 
             reward_date, staker
         ORDER BY 
             reward_date ASC`,
-        [address]
+        [address, days]
     );
 
     return dailyRewards;

@@ -1,25 +1,37 @@
+import { useState } from 'react';
+
 import Box from '@mui/material/Box';
 import Alert from '@mui/material/Alert';
 import Typography from '@mui/material/Typography';
 
-import { fCurrency, fShortenNumber } from 'src/utils/format-number';
+import { fPercent, fCurrency, fShortenNumber } from 'src/utils/format-number';
 
 import { useGetPortfolio } from 'src/actions/portfolio';
 import { DashboardContent } from 'src/layouts/dashboard';
 
 import { EmptyContent } from 'src/components/empty-content';
 
+import { PortfolioStat } from '../portfolio-stat';
 import { PortfolioValue } from '../portfolio-value';
 import { PortfolioPitch } from '../portfolio-pitch';
 import { PortfolioRewards } from '../portfolio-rewards';
 import { PortfolioAccounts } from '../portfolio-accounts';
 import { PortfolioAllocation } from '../portfolio-allocation';
-import { AppWidgetSimple } from '../../overview/app/app-widget-simple';
+import { balanceChange, rewardsInRange } from '../portfolio-range';
+
+import type { PortfolioRange } from '../portfolio-range';
 
 // ----------------------------------------------------------------------
 
+const nim = (value: number) => `${fShortenNumber(value).toUpperCase()} NIM`;
+
 export function PortfolioView() {
   const { portfolio, portfolioLoading, portfolioError, refreshPortfolio } = useGetPortfolio();
+
+  // Owned here rather than by the chart: Balance Change and Rewards are read
+  // against the same window, and two sources of truth for "which range" is how
+  // they end up disagreeing.
+  const [range, setRange] = useState<PortfolioRange>('1M');
 
   if (portfolioLoading) {
     return (
@@ -32,9 +44,7 @@ export function PortfolioView() {
   if (portfolioError || !portfolio) {
     return (
       <DashboardContent maxWidth={false}>
-        <Alert severity="error">
-          Could not load your portfolio. Try signing in again.
-        </Alert>
+        <Alert severity="error">Could not load your portfolio. Try signing in again.</Alert>
       </DashboardContent>
     );
   }
@@ -42,9 +52,14 @@ export function PortfolioView() {
   const { totals, price, tier } = portfolio;
   const nimUsd = price?.price ?? null;
 
+  const usd = (value: number) => (nimUsd === null ? '—' : fCurrency(value * nimUsd));
+
+  const change = balanceChange(portfolio.history, range, nimUsd);
+  const rangeRewards = portfolio.rewards ? rewardsInRange(portfolio.rewards.daily, range) : null;
+
   return (
     <DashboardContent maxWidth={false}>
-      <Typography variant="h4" sx={{ mb: 1 }}>
+      <Typography variant="h2" component="h1" sx={{ mb: 1 }}>
         Portfolio
       </Typography>
       <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
@@ -53,8 +68,9 @@ export function PortfolioView() {
           : `Everything held across your ${portfolio.addresses.length} addresses.`}
       </Typography>
 
-      {/* Headline numbers. These read current chain state, so they are correct
-          from the first visit -- unlike the charts below, which need history. */}
+      {/* Fiat leads, NIM sits under it. Total and Staked read current chain
+          state and are right on the first visit; Balance Change and Rewards
+          are scoped to the range chosen on the chart below. */}
       <Box
         sx={{
           gap: 3,
@@ -63,18 +79,29 @@ export function PortfolioView() {
           gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
         }}
       >
-        <AppWidgetSimple title="Total" text={`${fShortenNumber(totals.total).toUpperCase()} NIM`} />
-        <AppWidgetSimple
-          title="Value"
-          text={nimUsd !== null ? fCurrency(totals.total * nimUsd) : '—'}
-          color="info"
+        <PortfolioStat title="Total" primary={usd(totals.total)} secondary={nim(totals.total)} />
+
+        <PortfolioStat
+          title={`Balance Change ${range}`}
+          primary={
+            change === null
+              ? '—'
+              : `${change.usd >= 0 ? '+' : ''}${fCurrency(change.usd)}${
+                  change.percent === null ? '' : ` (${fPercent(change.percent)})`
+                }`
+          }
+          secondary={change === null ? undefined : `${change.nim >= 0 ? '+' : ''}${nim(change.nim)}`}
+          direction={change === null ? null : change.usd >= 0 ? 'up' : 'down'}
+          note={change === null ? 'Needs two days of snapshots' : undefined}
         />
-        <AppWidgetSimple title="Staked" text={`${fShortenNumber(totals.staked).toUpperCase()} NIM`} color="warning" />
-        <AppWidgetSimple
-          title="Rewards"
-          text={portfolio.rewards ? `${fShortenNumber(portfolio.rewards.total).toUpperCase()} NIM` : '—'}
-          extraText={portfolio.rewards ? `${fShortenNumber(portfolio.rewards.last30Days).toUpperCase()} in 30d` : undefined}
-          color="success"
+
+        <PortfolioStat title="Staked" primary={usd(totals.staked)} secondary={nim(totals.staked)} />
+
+        <PortfolioStat
+          title={`Rewards ${range}`}
+          primary={rangeRewards === null ? '—' : usd(rangeRewards)}
+          secondary={rangeRewards === null ? undefined : nim(rangeRewards)}
+          note={rangeRewards === null ? 'Only for stake held here' : undefined}
         />
       </Box>
 
@@ -90,8 +117,11 @@ export function PortfolioView() {
 
         <PortfolioValue
           title="Value over time"
-          subheader={nimUsd !== null ? 'Daily snapshots' : 'Daily snapshots (no price recorded)'}
+          subheader={nimUsd === null ? 'Daily snapshots (no price recorded)' : undefined}
           history={portfolio.history}
+          range={range}
+          onRangeChange={setRange}
+          nimUsd={nimUsd}
         />
       </Box>
 

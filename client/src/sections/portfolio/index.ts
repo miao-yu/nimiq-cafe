@@ -1,3 +1,7 @@
+export * from './portfolio-stat';
+
+export * from './portfolio-range';
+
 export * from './portfolio-value';
 
 export * from './portfolio-pitch';
