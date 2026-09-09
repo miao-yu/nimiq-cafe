@@ -601,12 +601,20 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
             const date = row.snapshot_date instanceof Date
                 ? row.snapshot_date.toISOString().slice(0, 10)
                 : String(row.snapshot_date).slice(0, 10);
-            const entry = byDate[date] || (byDate[date] = { date, liquid: 0, staked: 0, inactive: 0, retired: 0, nimUsd: null });
+            const entry = byDate[date]
+                || (byDate[date] = {
+                    date, liquid: 0, staked: 0, inactive: 0, retired: 0, nimUsd: null,
+                    // A day is only "observed" if every address in the bundle
+                    // was observed that day; one derived address makes the
+                    // combined total partly derived too.
+                    reconstructed: false,
+                });
             entry.liquid += Number(row.liquid) / LUNA;
             entry.staked += Number(row.staked) / LUNA;
             entry.inactive += Number(row.inactive) / LUNA;
             entry.retired += Number(row.retired) / LUNA;
             if (row.nim_usd !== null) entry.nimUsd = Number(row.nim_usd);
+            if (row.reconstructed) entry.reconstructed = true;
         });
         const series = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
 

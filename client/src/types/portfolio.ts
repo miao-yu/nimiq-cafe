@@ -30,6 +30,12 @@ export type IPortfolioHistoryPoint = {
   inactive: number;
   retired: number;
   nimUsd: number | null;
+  /**
+   * Derived by walking today's balance back through transactions and restakes,
+   * rather than recorded that day. Totals are exact; the liquid/staked split
+   * folds inactive and retired into staked.
+   */
+  reconstructed?: boolean;
 };
 
 export type IPortfolioRewards = {

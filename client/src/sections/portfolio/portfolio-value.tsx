@@ -49,7 +49,11 @@ export function PortfolioValue({
   sx,
   ...other
 }: Props) {
-  const series = toUsdSeries(withinRange(history, range), nimUsd);
+  const inRange = withinRange(history, range);
+  const series = toUsdSeries(inRange, nimUsd);
+
+  // Only worth saying when the visible window actually contains derived days.
+  const derived = inRange.filter((point) => point.reconstructed).length;
 
   const chartOptions = useChart({
     xaxis: {
@@ -98,7 +102,15 @@ export function PortfolioValue({
 
   return (
     <Card sx={sx} {...other}>
-      <CardHeader title={title} subheader={subheader} action={renderRanges()} />
+      <CardHeader
+        title={title}
+        subheader={
+          derived
+            ? `${derived} earlier ${derived === 1 ? 'day' : 'days'} reconstructed from on-chain activity`
+            : subheader
+        }
+        action={renderRanges()}
+      />
 
       {series.length < 2 ? (
         <Box sx={{ px: 3, pb: 3, pt: 1 }}>

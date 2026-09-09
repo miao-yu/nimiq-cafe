@@ -148,7 +148,8 @@ async function getSnapshots(pool, addresses, days = 90) {
     }
 
     const [rows] = await pool.query(
-        `SELECT address, snapshot_date, liquid, staked, inactive, retired, validator, nim_usd
+        `SELECT address, snapshot_date, liquid, staked, inactive, retired, validator, nim_usd,
+                reconstructed
          FROM ${SNAPSHOT_TABLE}
          WHERE address IN (?) AND snapshot_date >= CURDATE() - INTERVAL ? DAY
          ORDER BY snapshot_date ASC`,
@@ -294,8 +295,108 @@ async function getBackfillState(pool, addresses) {
     };
 }
 
+/** Restakes already backfilled for one address, as { 'YYYY-MM-DD': luna }. */
+async function getRestakesByDate(pool, address, days) {
+    const [rows] = await pool.query(
+        `SELECT reward_date, SUM(rewards) AS rewards
+         FROM ${REWARDS_TABLE}
+         WHERE address = ? AND reward_date >= CURDATE() - INTERVAL ? DAY
+         GROUP BY reward_date`,
+        [canonical(address), days]
+    );
+
+    const out = {};
+    rows.forEach((row) => {
+        const date = row.reward_date instanceof Date
+            ? row.reward_date.toISOString().slice(0, 10)
+            : String(row.reward_date).slice(0, 10);
+        out[date] = Number(row.rewards) || 0;
+    });
+    return out;
+}
+
+/**
+ * The last price recorded each day, as { 'YYYY-MM-DD': usd }.
+ *
+ * Last rather than average: a value chart is a series of closing balances, so
+ * closing prices are the consistent thing to multiply them by.
+ */
+async function getDailyPrices(pool, days) {
+    const [rows] = await pool.query(
+        `SELECT DATE(created_at) AS d,
+                SUBSTRING_INDEX(GROUP_CONCAT(price ORDER BY created_at DESC), ',', 1) AS price
+         FROM nimiq.price
+         WHERE created_at >= CURDATE() - INTERVAL ? DAY
+         GROUP BY d`,
+        [days]
+    );
+
+    const out = {};
+    rows.forEach((row) => {
+        const date = row.d instanceof Date ? row.d.toISOString().slice(0, 10) : String(row.d).slice(0, 10);
+        out[date] = Number(row.price);
+    });
+    return out;
+}
+
+/**
+ * Write reconstructed days.
+ *
+ * INSERT IGNORE, never an upsert: a day already recorded live is an
+ * observation, and a derivation must not overwrite one.
+ */
+async function writeReconstructed(pool, address, rows) {
+    if (!rows.length) {
+        return 0;
+    }
+
+    const key = canonical(address);
+    const values = rows.map((row) => [
+        key, row.date, row.liquid, row.staked, 0, 0, row.validator || null,
+        row.nimUsd === null || row.nimUsd === undefined ? null : row.nimUsd,
+        1, row.underflow ? 1 : 0,
+    ]);
+
+    await pool.query(
+        `INSERT IGNORE INTO ${SNAPSHOT_TABLE}
+           (address, snapshot_date, liquid, staked, inactive, retired, validator,
+            nim_usd, reconstructed, underflow)
+         VALUES ?`,
+        [values]
+    );
+
+    return rows.length;
+}
+
+/** Addresses whose history has never been reconstructed. */
+async function getReconstructCandidates(pool, limit) {
+    const [rows] = await pool.query(
+        `SELECT address FROM ${BUNDLE_TABLE}
+         WHERE history_reconstructed_at IS NULL
+           AND rewards_synced_to IS NOT NULL
+         ORDER BY first_seen ASC
+         LIMIT ?`,
+        [limit]
+    );
+    return rows;
+}
+
+async function markReconstructed(pool, address, truncated) {
+    await pool.query(
+        `UPDATE ${BUNDLE_TABLE}
+         SET history_reconstructed_at = NOW(), history_truncated = ?
+         WHERE address = ?`,
+        [truncated ? 1 : 0, canonical(address)]
+    );
+}
+
 module.exports = {
     canonical,
+    getRestakesByDate,
+    getDailyPrices,
+    writeReconstructed,
+    getReconstructCandidates,
+    markReconstructed,
     writeRewards,
     getBackfillCandidates,
     markBackfillAttempt,
