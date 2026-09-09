@@ -34,14 +34,10 @@
 const mysql = require('mysql2/promise');
 const { poolCredentials } = require('../db-config');
 const portfolio = require('../portfolio');
-const nimiqwatch = require('../nimiqwatch');
+const jobs = require('../portfolio-jobs');
 
-// How much history a first backfill asks for. A year is what the range selector
-// on /portfolio goes out to, so fetching more would be data nobody can see.
-const BACKFILL_DAYS = Number(process.env.PORTFOLIO_BACKFILL_DAYS || 365);
-
-// Addresses per run. At ~7s for a first backfill this is a couple of minutes of
-// work; raising it mostly buys a faster catch-up on a backlog we do not have.
+// Addresses per run. At ~1-7s each this is a couple of minutes of work; raising
+// it mostly buys a faster catch-up on a backlog we do not have.
 const MAX_ADDRESSES = Number(process.env.PORTFOLIO_BACKFILL_MAX || 20);
 
 // Pause between addresses. Nothing depends on the run finishing quickly.
@@ -50,50 +46,7 @@ const DELAY_MS = Number(process.env.PORTFOLIO_BACKFILL_DELAY_MS || 3000);
 // Stop starting new addresses after this. The one in flight still finishes.
 const BUDGET_MS = Number(process.env.PORTFOLIO_BACKFILL_BUDGET_MS || 15 * 60 * 1000);
 
-// Re-fetch a little of what we already have. The boundary day is usually
-// incomplete when it is first fetched, and a day is cheap.
-const OVERLAP_DAYS = 2;
-
 const sleep = (ms) => new Promise((done) => { setTimeout(done, ms); });
-
-function daysAgo(days) {
-    const date = new Date();
-    date.setUTCDate(date.getUTCDate() - days);
-    date.setUTCHours(0, 0, 0, 0);
-    return date;
-}
-
-/** Yesterday: today is still accruing, so it is not a finished day to claim. */
-function syncedThrough() {
-    return daysAgo(1).toISOString().slice(0, 10);
-}
-
-async function backfillOne(pool, candidate) {
-    const { address, rewards_synced_to: syncedTo } = candidate;
-
-    // Stamped first. A process killed mid-request must still back off, or a
-    // reliably-failing address gets retried every single night.
-    await portfolio.markBackfillAttempt(pool, address);
-
-    const from = syncedTo
-        ? new Date(new Date(`${String(syncedTo).slice(0, 10)}T00:00:00Z`).getTime()
-            - OVERLAP_DAYS * 24 * 60 * 60 * 1000)
-        : daysAgo(BACKFILL_DAYS);
-
-    const started = Date.now();
-    const rows = await nimiqwatch.dailyRewards(address, from, new Date());
-    const fetched = Date.now() - started;
-
-    // Today is partial; storing it would freeze a half day in place until the
-    // overlap happens to correct it.
-    const today = new Date().toISOString().slice(0, 10);
-    const finished = rows.filter((row) => row.date < today);
-
-    const written = await portfolio.writeRewards(pool, address, finished);
-    await portfolio.markBackfillSuccess(pool, address, syncedThrough());
-
-    return { written, fetched, first: !syncedTo };
-}
 
 async function main() {
     const pool = mysql.createPool(poolCredentials({ waitForConnections: true, connectionLimit: 2 }));
@@ -114,11 +67,13 @@ async function main() {
             }
 
             try {
-                const result = await backfillOne(pool, candidate);
+                const result = await jobs.backfillRewards(
+                    pool, candidate.address, candidate.rewards_synced_to
+                );
                 rows += result.written;
                 done += 1;
                 console.log(`  ${candidate.address}: ${result.written} day(s)`
-                    + `${result.first ? ' [first backfill]' : ''} in ${result.fetched}ms`);
+                    + `${result.first ? ' [first backfill]' : ''} in ${result.ms}ms`);
             } catch (error) {
                 failed += 1;
                 await portfolio.markBackfillFailure(pool, candidate.address).catch(() => {});

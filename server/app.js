@@ -22,6 +22,7 @@ var currencies = require(__dirname + '/json/currency.json');
 const seo = require('./seo');
 const { issueChallenge, consumeChallenge } = require('./challenge');
 const portfolio = require('./portfolio');
+const warmup = require('./portfolio-warmup');
 
 var addressBook = require(__dirname + '/json/address-book.json');
 
@@ -167,6 +168,9 @@ app.post('/api/auth/sign-in', async (req, res) => {
     // here must not fail the sign-in -- the portfolio degrades, auth does not.
     try {
       await portfolio.touchAccount(pool, address);
+      // Not awaited: building a year of history must never sit between
+      // somebody and being signed in.
+      warmup.warmAddress(pool, address);
     } catch (error) {
       console.error('touchAccount failed:', error.message);
     }
@@ -558,6 +562,10 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
         // sign-in may be weeks in the past.
         try {
             await portfolio.touchAccount(pool, signedInAddress);
+            // Also here, not only at sign-in: a session started on
+            // reef.nimiq.cafe arrives with a cookie and never touches
+            // /api/auth/sign-in, so this is its first point of contact.
+            warmup.warmAddress(pool, signedInAddress);
         } catch (error) {
             console.error('touchAccount failed:', error.message);
         }

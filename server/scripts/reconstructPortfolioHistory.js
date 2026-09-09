@@ -21,74 +21,14 @@
 const mysql = require('mysql2/promise');
 const { poolCredentials } = require('../db-config');
 const portfolio = require('../portfolio');
-const nimiqhub = require('../nimiqhub');
-const { reconstructHistory } = require('../reconstruct');
+const jobs = require('../portfolio-jobs');
 
 const HISTORY_DAYS = Number(process.env.PORTFOLIO_RECONSTRUCT_DAYS || 365);
 const MAX_ADDRESSES = Number(process.env.PORTFOLIO_RECONSTRUCT_MAX || 20);
 const DELAY_MS = Number(process.env.PORTFOLIO_RECONSTRUCT_DELAY_MS || 2000);
 const BUDGET_MS = Number(process.env.PORTFOLIO_RECONSTRUCT_BUDGET_MS || 15 * 60 * 1000);
 
-const JSON_RPC_URL = process.env.NIMIQ_RPC_URL || 'http://127.0.0.1:8648';
-const RPC_TIMEOUT_MS = Number(process.env.RPC_TIMEOUT_MS || 30000);
-
 const sleep = (ms) => new Promise((done) => { setTimeout(done, ms); });
-
-async function rpc(method, params) {
-    const res = await fetch(JSON_RPC_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', method, params, id: 1 }),
-        signal: AbortSignal.timeout(RPC_TIMEOUT_MS),
-    });
-    const body = await res.json();
-    return body.result ? body.result.data : null;
-}
-
-async function reconstructOne(pool, address, prices) {
-    const [account, staker] = await Promise.all([
-        rpc('getAccountByAddress', [address]),
-        rpc('getStakerByAddress', [address]).catch(() => null),
-    ]);
-
-    if (!account) {
-        return { written: 0, skipped: 'no account on chain' };
-    }
-
-    const { transactions, truncated } = await nimiqhub.fetchTransactions(address);
-    const restakesByDate = await portfolio.getRestakesByDate(pool, address, HISTORY_DAYS);
-
-    const days = reconstructHistory({
-        address,
-        current: {
-            liquid: account.balance || 0,
-            staked: staker ? staker.balance || 0 : 0,
-            inactive: staker ? staker.inactiveBalance || 0 : 0,
-            retired: staker ? staker.retiredBalance || 0 : 0,
-        },
-        transactions,
-        restakesByDate,
-        days: HISTORY_DAYS,
-    });
-
-    // A day with no recorded price is still worth storing: the balance is real,
-    // and the chart carries the previous price forward rather than dropping it.
-    const rows = days.map((day) => ({
-        ...day,
-        validator: staker ? staker.delegation || null : null,
-        nimUsd: prices[day.date] === undefined ? null : prices[day.date],
-    }));
-
-    const written = await portfolio.writeReconstructed(pool, address, rows);
-    await portfolio.markReconstructed(pool, address, truncated);
-
-    return {
-        written,
-        truncated,
-        underflows: rows.filter((row) => row.underflow).length,
-        priced: rows.filter((row) => row.nimUsd !== null).length,
-    };
-}
 
 async function main() {
     const pool = mysql.createPool(poolCredentials({ waitForConnections: true, connectionLimit: 2 }));
@@ -116,7 +56,7 @@ async function main() {
             }
 
             try {
-                const result = await reconstructOne(pool, address, prices);
+                const result = await jobs.reconstructPast(pool, address, prices);
 
                 if (result.skipped) {
                     console.log(`  ${address}: skipped -- ${result.skipped}`);
