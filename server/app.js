@@ -1918,26 +1918,59 @@ async function getTransactionByHash(hash) {
  * had; the portfolio asks for far more, because its range selector goes out to
  * a year and beyond and the sums under it have to cover whatever is chosen.
  */
+/**
+ * Daily rewards for one of our stakers.
+ *
+ * pool.staker_rewards is rotated: it holds roughly the last month and the rest
+ * moves to pool.staker_rewards_archive. Reading only the live table silently
+ * capped this at ~30 days however wide a window was asked for, which is why our
+ * own stakers saw less history than people staking elsewhere.
+ *
+ * The archive is not the answer. Unioning it in is correct but takes 64s for a
+ * year on a busy staker -- roughly 460k rows out of 66M -- because it stores
+ * every individual reward, not a daily total.
+ *
+ * pool.portfolio_rewards already holds exactly what a daily chart wants: one
+ * pre-aggregated row per day, backfilled nightly, indexed by (address, date).
+ * So the old days come from there and the recent ones from the live table,
+ * which is small and fast. Where both cover a day, ours wins -- it is our
+ * ledger, and the backfill is a third party's view of the same thing.
+ */
 async function getStakerDailyRewards(address, days = 30) {
-    const [dailyRewards] = await pool.query(
-        `SELECT 
-            DATE(created_at) AS reward_date,
-            SUM(rewards) AS total_rewards
-        FROM 
-            pool.staker_rewards 
-        WHERE 
-            staker = ? 
-            AND created_at >= CURDATE() - INTERVAL ? DAY 
-            AND created_at < CURDATE() 
-        GROUP BY 
-            reward_date, staker
-        ORDER BY 
-            reward_date ASC`,
-        [address, days]
-    );
+    const [backfilled, live] = await Promise.all([
+        pool.query(
+            `SELECT reward_date, SUM(rewards) AS total_rewards
+             FROM pool.portfolio_rewards
+             WHERE address = ? AND reward_date >= CURDATE() - INTERVAL ? DAY
+             GROUP BY reward_date`,
+            [address, days]
+        ).then(([rows]) => rows).catch(() => []),
 
-    return dailyRewards;
+        pool.query(
+            `SELECT DATE(created_at) AS reward_date, SUM(rewards) AS total_rewards
+             FROM pool.staker_rewards
+             WHERE staker = ?
+               AND created_at >= CURDATE() - INTERVAL ? DAY
+               AND created_at < CURDATE()
+             GROUP BY reward_date`,
+            [address, days]
+        ).then(([rows]) => rows),
+    ]);
+
+    const byDate = {};
+    const key = (row) => (row.reward_date instanceof Date
+        ? row.reward_date.toISOString().slice(0, 10)
+        : String(row.reward_date).slice(0, 10));
+
+    backfilled.forEach((row) => { byDate[key(row)] = Number(row.total_rewards) || 0; });
+    // Second, so a day we recorded ourselves replaces the backfilled estimate.
+    live.forEach((row) => { byDate[key(row)] = Number(row.total_rewards) || 0; });
+
+    return Object.keys(byDate)
+        .sort()
+        .map((date) => ({ reward_date: date, total_rewards: byDate[date] }));
 }
+
 
 async function getStakerTodayRewards(address) {
     const [todayRewards] = await pool.query(
