@@ -63,6 +63,7 @@ const HUB_ENDPOINT = 'https://hub.nimiq.com';
 const INJECTION_TIMEOUT_MS = 1500;
 
 let cached: Promise<NimiqSigner> | undefined;
+let resolved: NimiqSigner | undefined;
 
 /** Resolve the signer, once per page load. */
 export function getSigner(): Promise<NimiqSigner> {
@@ -75,14 +76,32 @@ export function warmSigner(): void {
   void getSigner();
 }
 
+/**
+ * The signer, without awaiting anything.
+ *
+ * A wallet dialog has to be opened from inside the click that asked for it: on
+ * iOS `window.open` is only permitted in the same task as the gesture, and
+ * awaiting the injection wait above ends that task. So use the wait's answer if
+ * it has already landed, and otherwise decide from what is on `window` right
+ * now. That is not a guess -- the Mini App host injects `window.nimiq` before
+ * the page script runs, so by the time anyone can click it is either there or
+ * it is never coming.
+ */
+export function signerNow(): NimiqSigner {
+  if (resolved) return resolved;
+  return window.nimiq ? createMiniAppSigner(window.nimiq) : createHubSigner();
+}
+
 /** Forget the cached choice, so a failed attempt can be retried cleanly. */
 export function resetSigner(): void {
   cached = undefined;
+  resolved = undefined;
 }
 
 async function resolve(): Promise<NimiqSigner> {
   const injected = await waitForInjection();
-  return injected ? createMiniAppSigner(injected) : createHubSigner();
+  resolved = injected ? createMiniAppSigner(injected) : createHubSigner();
+  return resolved;
 }
 
 async function waitForInjection(): Promise<InjectedProvider | null> {

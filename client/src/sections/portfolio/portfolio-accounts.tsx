@@ -1,7 +1,7 @@
 import type { CardProps } from '@mui/material/Card';
 import type { IPortfolioAccount } from 'src/types/portfolio';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -21,9 +21,9 @@ import TableContainer from '@mui/material/TableContainer';
 import { fShortenNumber } from 'src/utils/format-number';
 import { fShortenString } from 'src/utils/format-blockchain';
 
-import axios, { endpoints } from 'src/lib/axios';
-import { getSigner } from 'src/lib/nimiq-provider';
+import { signerNow } from 'src/lib/nimiq-provider';
 import { addPortfolioAddress, removePortfolioAddress } from 'src/actions/portfolio';
+import { takeChallenge, fetchChallenge, primeChallenge } from 'src/lib/nimiq-challenge';
 
 import { Iconify } from 'src/components/iconify';
 
@@ -57,13 +57,21 @@ export function PortfolioAccounts({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  // Fetched before the button is pressed, so the wallet can be opened from
+  // inside the click itself -- see nimiq-challenge.ts.
+  useEffect(() => {
+    primeChallenge();
+  }, []);
+
   const handleAdd = async () => {
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
-      const signer = await getSigner();
-      const { data: challenge } = await axios.post(endpoints.auth.challenge);
+      // Same rule as sign-in: nothing awaited before the wallet opens, or iOS
+      // refuses the popup. The challenge was primed on mount.
+      const signer = signerNow();
+      const challenge = takeChallenge() ?? (await fetchChallenge());
       // The wallet decides which address signs. In a browser that is a picker;
       // inside Nimiq Pay it is the active account.
       const signed = await signer.sign(challenge.message);

@@ -1,15 +1,10 @@
 import axios, { endpoints } from 'src/lib/axios';
-import { getSigner, resetSigner } from 'src/lib/nimiq-provider';
+import { signerNow, resetSigner } from 'src/lib/nimiq-provider';
+import { takeChallenge, fetchChallenge } from 'src/lib/nimiq-challenge';
 
 import { setSession } from './utils';
 
 // ----------------------------------------------------------------------
-
-type Challenge = {
-  code: string;
-  message: string;
-  expiresAt: number;
-};
 
 /** **************************************
  * Sign in
@@ -20,13 +15,19 @@ type Challenge = {
  * five minutes. It used to sign a fixed constant, which made any signature
  * over it a permanent credential.
  *
- * Works in an ordinary browser and inside Nimiq Pay; getSigner() decides which.
+ * Works in an ordinary browser and inside Nimiq Pay; signerNow() decides which.
+ *
+ * Nothing may be awaited between entering this function and opening the wallet.
+ * On iOS -- every iPhone browser, Chrome included -- a popup is only allowed in
+ * the same task as the click, and asking the server for a challenge here is
+ * what got sign-in refused there. The challenge is fetched ahead of the press
+ * instead; the await below is only the fallback for when none was primed, and
+ * it costs the popup on iPhone, so a second press is what recovers.
  *************************************** */
 export const signInWithAddress = async (): Promise<void> => {
   try {
-    const signer = await getSigner();
-
-    const { data: challenge } = await axios.post<Challenge>(endpoints.auth.challenge);
+    const signer = signerNow();
+    const challenge = takeChallenge() ?? (await fetchChallenge());
 
     const signed = await signer.sign(challenge.message);
 
