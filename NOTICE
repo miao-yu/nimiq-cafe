@@ -1,0 +1,14 @@
+Third-party components
+======================
+
+The MIT license in LICENSE covers the original work in this repository: the
+Express server, the staking, portfolio and explorer features, and the scripts
+and tooling around them.
+
+client/ is built on the Minimal UI admin template (https://minimals.cc),
+published as "@minimal-kit/vite-ts" by Minimals. The template files that come
+from it are covered by their own commercial license, not by the MIT terms
+above, and reusing those parts requires a Minimal UI license of your own.
+
+Dependencies installed from npm keep the licenses their authors chose; see each
+package's own metadata.
