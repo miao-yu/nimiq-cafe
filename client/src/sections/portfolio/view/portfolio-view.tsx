@@ -4,7 +4,7 @@ import Box from '@mui/material/Box';
 import Alert from '@mui/material/Alert';
 import Typography from '@mui/material/Typography';
 
-import { fCurrency, fShortenNumber } from 'src/utils/format-number';
+import { fCurrency } from 'src/utils/format-number';
 
 import { useGetPortfolio } from 'src/actions/portfolio';
 import { DashboardContent } from 'src/layouts/dashboard';
@@ -17,13 +17,14 @@ import { PortfolioPitch } from '../portfolio-pitch';
 import { PortfolioRewards } from '../portfolio-rewards';
 import { PortfolioAccounts } from '../portfolio-accounts';
 import { PortfolioAllocation } from '../portfolio-allocation';
-import { balanceChange, rewardsInRange } from '../portfolio-range';
+import { balanceChange, formatNimShort, rewardsInRange } from '../portfolio-range';
 
 import type { PortfolioRange } from '../portfolio-range';
 
 // ----------------------------------------------------------------------
 
-const nim = (value: number) => `${fShortenNumber(value).toUpperCase()} NIM`;
+// The same compact figure the charts use -- see portfolio-range.ts.
+const nim = formatNimShort;
 
 export function PortfolioView() {
   const { portfolio, portfolioLoading, portfolioError, refreshPortfolio } = useGetPortfolio();

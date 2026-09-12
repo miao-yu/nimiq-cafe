@@ -12,7 +12,7 @@ import { Chart, useChart } from 'src/components/chart';
 import { PortfolioRangeToggle } from './portfolio-range-toggle';
 import {
   withinRange,
-  formatNimAxis,
+  formatNimShort,
   formatDayLabel,
   formatNimExact,
   formatUsdExact,
@@ -62,7 +62,7 @@ export function PortfolioRewards({
       type: 'category',
       tickAmount: Math.min(daily.length, 8),
     },
-    yaxis: { labels: { formatter: (value: number) => formatNimAxis(value) } },
+    yaxis: { labels: { formatter: (value: number) => formatNimShort(value) } },
     tooltip: {
       y: {
         // The series is NIM; the fiat value is what most people are converting

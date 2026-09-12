@@ -14,8 +14,8 @@ import {
   withinRange,
   toUsdSeries,
   formatUsdAxis,
+  formatNimShort,
   formatUsdExact,
-  formatNimExact,
   formatRangeDate,
 } from './portfolio-range';
 
@@ -85,7 +85,7 @@ export function PortfolioValue({
           const point = opts ? series[opts.dataPointIndex] : undefined;
 
           return point
-            ? `${formatUsdExact(value)}  ·  ${formatNimExact(point.nim)}`
+            ? `${formatUsdExact(value)}  ·  ${formatNimShort(point.nim)}`
             : formatUsdExact(value);
         },
       },

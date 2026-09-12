@@ -29,7 +29,15 @@ export function formatUsdExact(value: number): string {
     : fCurrency(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function formatNimAxis(value: number): string {
+/**
+ * The compact NIM figure, shared by chart axes, the stat cards and the Value
+ * over time tooltip.
+ *
+ * One function rather than three copies: the Total card and that tooltip drifted
+ * apart -- 4.59M NIM against 4,590,000 NIM for the same holding -- precisely
+ * because the view kept its own identical helper.
+ */
+export function formatNimShort(value: number): string {
   return `${fShortenNumber(value).toUpperCase()} NIM`;
 }
 
