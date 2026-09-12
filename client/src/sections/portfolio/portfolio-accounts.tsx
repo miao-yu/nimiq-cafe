@@ -97,7 +97,7 @@ export function PortfolioAccounts({
       <CardHeader title={title} subheader={subheader} />
 
       {/* Paste and add. No wallet, no signature -- see actions/portfolio.ts. */}
-      <Box sx={{ px: 3, pt: 2, gap: 1.5, display: 'flex', alignItems: 'flex-start' }}>
+      <Box sx={{ px: 3, pt: 2, pb: 2.5, gap: 1.5, display: 'flex', alignItems: 'flex-start' }}>
         <TextField
           fullWidth
           size="small"
