@@ -11,7 +11,6 @@ import { iconButtonClasses } from "@mui/material/IconButton";
 
 import { Logo } from "src/components/logo";
 import { useSettingsContext } from "src/components/settings";
-import GoogleAdsWrapper from "src/components/utils/google-ads-wrapper";
 
 import { useAuthContext } from "src/auth/hooks";
 
@@ -185,14 +184,6 @@ export function DashboardLayout({
 
 	const renderMain = () => (
 		<MainSection {...slotProps?.main}>
-			<GoogleAdsWrapper
-				excludePaths={["/staking", "/staker", "/settings"]}
-				sx={{
-					maxWidth: "100%",
-					mx: "auto",
-					px: 2,
-				}}
-			/>
       {children}
 		</MainSection>
 	);

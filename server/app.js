@@ -4,6 +4,7 @@ const { poolCredentials, required } = require('./db-config');
 
 const fs = require('fs');
 const fsPromise = require('fs').promises;
+const crypto = require('crypto');
 const Redis = require('ioredis');
 var createError = require('http-errors');
 var express = require('express');
@@ -1282,7 +1283,14 @@ app.get('/api/pools/:address', async function(req, res, next) {
         ...validator,
         name,
         address: validator.address,
-        logo: addressBook[validator.address] && addressBook[validator.address].logo ? addressBook[validator.address].logo : validator.logo,
+        // Same defect as the list endpoint, one validator at a time: this used
+        // to inline the whole logo on every request.
+        logo: logoReference(
+            validator.address,
+            addressBook[validator.address] && addressBook[validator.address].logo
+                ? addressBook[validator.address].logo
+                : validator.logo
+        ),
         addressLink: `/wallet/${validator.address}`,
         balance: validatorBalance,
         numStakers: validator.numStakers,
@@ -1304,6 +1312,121 @@ app.get('/api/pools/:address', async function(req, res, next) {
             };
         })
     });
+});
+
+// --- validator logos ---------------------------------------------------------
+//
+// Logos are stored as base64 data: URIs, in address-book.json and in the
+// validators.json that storeValidators writes. Inlining them in the JSON below
+// made that one response 1,049,514 bytes to draw 30 rows -- 99% of it logo, and
+// still 681 kB gzipped, because base64 barely compresses. It carried no cache
+// headers either, so every visit downloaded the whole lot again.
+//
+// Served as their own URLs instead, the JSON drops to ~9 kB and the browser
+// fetches each logo once and keeps it. The `v` parameter is a hash of the bytes,
+// so the URL changes when a validator changes their logo, which is what makes
+// `immutable` honest rather than a year-long mistake.
+
+const LOGO_MAX_AGE = 31536000;
+
+// validators.json is rewritten by a cron, so the index is rebuilt whenever the
+// file changes. address-book.json is require()d once at startup and cannot.
+let logoIndex = { mtimeMs: -1, size: -1, byAddress: new Map() };
+
+async function validatorLogoIndex() {
+    const file = __dirname + '/json/validators.json';
+    const stat = await fsPromise.stat(file);
+
+    if (stat.mtimeMs !== logoIndex.mtimeMs || stat.size !== logoIndex.size) {
+        const validators = JSON.parse(await fsPromise.readFile(file, 'utf-8'));
+        const byAddress = new Map();
+
+        validators.forEach((validator) => {
+            if (validator.logo) {
+                byAddress.set(validator.address, validator.logo);
+            }
+        });
+
+        logoIndex = { mtimeMs: stat.mtimeMs, size: stat.size, byAddress };
+    }
+
+    return logoIndex.byAddress;
+}
+
+/** The stored logo for an address: the address book wins, then validators.json. */
+async function rawValidatorLogo(address) {
+    const entry = addressBook[address];
+    if (entry && entry.logo) {
+        return entry.logo;
+    }
+
+    return (await validatorLogoIndex()).get(address) || null;
+}
+
+/**
+ * What to put in a JSON response. Anything already addressable -- an http URL,
+ * or a path served out of the client build -- is left alone; only inlined bytes
+ * are moved behind a URL of our own.
+ */
+function logoReference(address, logo) {
+    if (!logo || !logo.startsWith('data:')) {
+        return logo;
+    }
+
+    const version = crypto.createHash('sha1').update(logo).digest('hex').slice(0, 8);
+    return `/api/validator-logo/${encodeURIComponent(address)}?v=${version}`;
+}
+
+/**
+ * The type the bytes actually are, rather than the one the data: URI claims.
+ *
+ * At least one logo in the address book is a WEBP labelled image/png. That went
+ * unnoticed while it was inlined, because browsers sniff data: URIs -- but the
+ * label becomes a real Content-Type once it is served over HTTP, so read the
+ * magic number and only fall back to what was declared.
+ */
+function sniffImageType(bytes) {
+    const head = bytes.slice(0, 4).toString('hex');
+    const ascii = bytes.slice(0, 12).toString('latin1');
+
+    if (head === '89504e47') return 'image/png';
+    if (bytes.slice(0, 3).toString('hex') === 'ffd8ff') return 'image/jpeg';
+    if (ascii.startsWith('GIF8')) return 'image/gif';
+    if (ascii.startsWith('RIFF') && ascii.slice(8, 12) === 'WEBP') return 'image/webp';
+    if (bytes.slice(0, 400).toString('utf8').includes('<svg')) return 'image/svg+xml';
+
+    return null;
+}
+
+app.get('/api/validator-logo/:address', async function(req, res, next) {
+    try {
+        // Accept the address spaced or not; both forms appear in links.
+        const compact = String(req.params.address).toUpperCase().replace(/\s+/g, '');
+
+        if (!/^NQ[0-9A-Z]{34}$/.test(compact)) {
+            return res.status(400).end();
+        }
+
+        const address = compact.match(/.{1,4}/g).join(' ');
+        const logo = await rawValidatorLogo(address);
+
+        // Only inlined bytes are served here. Anything else is already a URL the
+        // browser can fetch directly, so the JSON never points at this route.
+        const match = logo && /^data:([^;,]+);base64,(.+)$/.exec(logo);
+
+        if (!match) {
+            return res.status(404).end();
+        }
+
+        const bytes = Buffer.from(match[2], 'base64');
+
+        res.set('Cache-Control', `public, max-age=${LOGO_MAX_AGE}, immutable`);
+        res.type(sniffImageType(bytes) || match[1]);
+
+        return res.send(bytes);
+    } catch (error) {
+        return next(error);
+    }
 });
 
 app.get('/api/elected-validators', async function(req, res, next) {
@@ -1340,7 +1463,12 @@ app.get('/api/elected-validators', async function(req, res, next) {
         return {
             name,
             address: validator.address,
-            logo: addressBook[validator.address] && addressBook[validator.address].logo ? addressBook[validator.address].logo : validator.logo,
+            logo: logoReference(
+                validator.address,
+                addressBook[validator.address] && addressBook[validator.address].logo
+                    ? addressBook[validator.address].logo
+                    : validator.logo
+            ),
             addressLink: `/wallet/${validator.address}`,
             balance: validatorBalance,
             numStakers: validator.numStakers,

@@ -2,6 +2,17 @@ import { useRef, useEffect } from "react";
 
 import { usePathname } from "src/routes/hooks";
 
+/**
+ * Currently unmounted. Ads are off for now, so nothing renders this.
+ *
+ * Turning them back on means putting <GoogleAdsWrapper /> back into
+ * layouts/dashboard/layout.tsx. Do not restore the <script> tag that used to
+ * sit in index.html: it loaded adsbygoogle on every page regardless of
+ * `excludePaths` below, which is why the exclusions never actually worked, and
+ * it pulled ~1.3 MB across 31 requests -- fundingchoices, adtrafficquality and
+ * doubleclick all cascade from it. Injecting here is the whole mechanism.
+ */
+
 interface GoogleAdsProps {
 	excludePaths?: string[];
 }
