@@ -573,11 +573,11 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
 
         let addresses = [signedInAddress];
         try {
-            addresses = await portfolio.getBundleAddresses(pool, signedInAddress);
+            addresses = await portfolio.getPortfolioAddresses(pool, signedInAddress);
         } catch (error) {
-            // A missing bundle must not blank the page -- fall back to the one
-            // address the token proves.
-            console.error('getBundleAddresses failed:', error.message);
+            // A missing watchlist must not blank the page -- fall back to the
+            // one address the token proves.
+            console.error('getPortfolioAddresses failed:', error.message);
         }
 
         const accounts = await Promise.all(addresses.map(portfolioAccount));
@@ -748,41 +748,50 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
  * this reuses the sign-in machinery rather than inventing a second one.
  */
 app.post('/api/portfolio/addresses', authenticateToken, async function(req, res) {
-    const { code, publicKey, signature, signer } = req.body;
+    const { address } = req.body;
 
-    if (typeof code !== 'string' || typeof publicKey !== 'string'
-        || typeof signature !== 'string' || typeof signer !== 'string') {
-      return res.status(400).json({ message: 'Invalid request.' });
+    if (typeof address !== 'string') {
+      return res.status(400).json({ message: 'Provide a Nimiq address.' });
     }
 
-    const challenge = consumeChallenge(code);
-    if (!challenge) {
-      return res.status(400).json({ message: 'That request expired or was already used. Try again.' });
-    }
-
-    const candidate = verifySignedMessage(publicKey, signature, challenge.message, signer);
-    if (!candidate) {
-      return res.status(400).json({ message: 'That signature did not verify.' });
+    // Parsed rather than pattern-matched. A typo that satisfies /^NQ[0-9A-Z]{34}$/
+    // is still not an address, and accepting one would queue a reward backfill
+    // and a transaction fetch against services that are not ours. This rejects
+    // a bad checksum, and hands back the canonical spacing either way.
+    let candidate;
+    try {
+        candidate = Nimiq.Address
+            // Upper-cased first. The parser answers "Wrong country code" to a
+            // lower-case address, and people paste what their source handed
+            // them -- a phone keyboard or a copied-from-lower-case string must
+            // not come back as "that is not a valid Nimiq address".
+            .fromUserFriendlyAddress(address.trim().toUpperCase())
+            .toUserFriendlyAddress();
+    } catch (error) {
+        return res.status(400).json({ message: 'That is not a valid Nimiq address.' });
     }
 
     try {
-        // The owner may have signed in before this table existed, in which case
-        // it has no bundle to link into yet.
+        // The owner may hold a token older than this table.
         await portfolio.touchAccount(pool, req.user.address);
 
-        const result = await portfolio.linkAddress(pool, req.user.address, candidate);
+        const result = await portfolio.addWatchedAddress(pool, req.user.address, candidate);
         if (!result.ok) {
             const messages = {
                 'same-address': 'That address is already the one you are signed in with.',
-                'already-linked': 'That address is already in your portfolio.',
-                'in-another-bundle': 'That address is grouped with other addresses already. Remove it there first.',
-                'unknown-owner': 'Sign in again and retry.',
+                'already-watched': 'That address is already in your portfolio.',
+                'too-many': `You can follow up to ${portfolio.MAX_WATCHED} extra addresses.`,
             };
             return res.status(400).json({ message: messages[result.reason] || 'Could not add that address.' });
         }
+
+        // Start its history now rather than at the next nightly cron, the same
+        // way a first sign-in does.
+        warmup.warmAddress(pool, candidate);
+
         res.status(200).json({ address: candidate });
     } catch (error) {
-        console.error('linkAddress failed:', error);
+        console.error('addWatchedAddress failed:', error);
         res.status(500).json({ message: 'Could not add that address.' });
     }
 });
@@ -790,17 +799,17 @@ app.post('/api/portfolio/addresses', authenticateToken, async function(req, res)
 /** Remove an address from the bundle. It keeps its own history and can sign in alone. */
 app.delete('/api/portfolio/addresses/:address', authenticateToken, async function(req, res) {
     try {
-        const result = await portfolio.unlinkAddress(pool, req.user.address, req.params.address);
+        const result = await portfolio.removeWatchedAddress(pool, req.user.address, req.params.address);
         if (!result.ok) {
             const messages = {
                 'cannot-remove-self': 'You cannot remove the address you are signed in with.',
-                'not-in-bundle': 'That address is not in your portfolio.',
+                'not-watched': 'That address is not in your portfolio.',
             };
             return res.status(400).json({ message: messages[result.reason] || 'Could not remove that address.' });
         }
         res.status(200).json({ address: portfolio.canonical(req.params.address) });
     } catch (error) {
-        console.error('unlinkAddress failed:', error);
+        console.error('removeWatchedAddress failed:', error);
         res.status(500).json({ message: 'Could not remove that address.' });
     }
 });

@@ -6,8 +6,21 @@
 
 const { randomBytes } = require('crypto');
 
+// Not only the bundle table any more: this is the registry of every address we
+// track, which getSnapshotTargets reads and where the backfill state lives.
 const BUNDLE_TABLE = 'pool.portfolio_accounts';
+const WATCHLIST_TABLE = 'pool.portfolio_watchlist';
 const SNAPSHOT_TABLE = 'pool.portfolio_snapshots';
+
+/**
+ * How many addresses one account may follow.
+ *
+ * This is the real guard now that adding one costs nothing. Each new address
+ * fires a Nimiq Watch backfill and a Hub transaction fetch on arrival, then
+ * nightly cron work for good -- an unbounded list would let one person point a
+ * lot of load at services that are not ours.
+ */
+const MAX_WATCHED = 20;
 
 /** Addresses are stored and compared in the canonical spaced upper-case form. */
 function canonical(address) {
@@ -34,43 +47,41 @@ async function touchAccount(pool, address) {
     );
 }
 
-/** Every address that signs in gets a bundle, so this should not return null. */
-async function getBundleId(pool, address) {
-    const [rows] = await pool.query(
-        `SELECT bundle_id FROM ${BUNDLE_TABLE} WHERE address = ?`,
-        [canonical(address)]
-    );
-    return rows.length ? rows[0].bundle_id : null;
-}
-
 /**
- * All addresses the signed-in address may see, itself included. Membership is
- * symmetric: signing in with any member shows the whole bundle.
- */
-async function getBundleAddresses(pool, address) {
-    const key = canonical(address);
-    const bundleId = await getBundleId(pool, key);
-    if (!bundleId) {
-        return [key];
-    }
-
-    const [rows] = await pool.query(
-        `SELECT address, first_seen FROM ${BUNDLE_TABLE}
-         WHERE bundle_id = ? ORDER BY first_seen ASC`,
-        [bundleId]
-    );
-    return rows.map((row) => row.address);
-}
-
-/**
- * Add `candidate` to the bundle `address` belongs to. The caller must already
- * have proved control of `candidate` by signing a challenge with it.
+ * Every address this portfolio covers: the signed-in one first, then the ones
+ * it follows, oldest first.
  *
- * An address that is already in a different bundle is refused rather than
- * merged. Merging looks harmless and is not: bundles are symmetric, so folding
- * {C,D} into {A,B} silently hands C and D a view of A. Unlink first.
+ * Directional, and that is the point. Following an address proves nothing about
+ * who controls it, so it must never work in reverse -- if B is on A's list,
+ * signing in as B shows B's portfolio and nothing of A's. The bundle this
+ * replaced was symmetric, which was only safe while adding required a signature
+ * from the address being added.
  */
-async function linkAddress(pool, address, candidate) {
+async function getPortfolioAddresses(pool, address) {
+    const owner = canonical(address);
+
+    const [rows] = await pool.query(
+        `SELECT watched_address FROM ${WATCHLIST_TABLE}
+         WHERE owner_address = ? ORDER BY added_at ASC`,
+        [owner]
+    );
+
+    return [owner, ...rows.map((row) => row.watched_address).filter((a) => a !== owner)];
+}
+
+/**
+ * Follow another address. No signature required.
+ *
+ * Balances and rewards are public chain data, and this page only reads them, so
+ * proving control bought friction rather than safety -- unlocking a wallet per
+ * address, on a phone, to look at numbers anyone can already look up. What it
+ * did buy was a natural limit on how many addresses one account could add, so
+ * MAX_WATCHED takes that job instead.
+ *
+ * Nothing here grants the watched address anything. It does not learn it is
+ * being watched, and its own portfolio is unaffected.
+ */
+async function addWatchedAddress(pool, address, candidate) {
     const owner = canonical(address);
     const key = canonical(candidate);
 
@@ -78,49 +89,44 @@ async function linkAddress(pool, address, candidate) {
         return { ok: false, reason: 'same-address' };
     }
 
-    const bundleId = await getBundleId(pool, owner);
-    if (!bundleId) {
-        return { ok: false, reason: 'unknown-owner' };
+    const [counted] = await pool.query(
+        `SELECT COUNT(*) AS n FROM ${WATCHLIST_TABLE} WHERE owner_address = ?`,
+        [owner]
+    );
+    if (counted[0].n >= MAX_WATCHED) {
+        return { ok: false, reason: 'too-many' };
     }
 
-    const existing = await getBundleId(pool, key);
-    if (existing === bundleId) {
-        return { ok: false, reason: 'already-linked' };
-    }
-    if (existing) {
-        // It has its own history elsewhere. Refuse rather than merge.
-        const [siblings] = await pool.query(
-            `SELECT COUNT(*) AS n FROM ${BUNDLE_TABLE} WHERE bundle_id = ?`,
-            [existing]
-        );
-        if (siblings[0].n > 1) {
-            return { ok: false, reason: 'in-another-bundle' };
-        }
-        // A lone address is safe to move: nothing else can see it.
-        await pool.query(
-            `UPDATE ${BUNDLE_TABLE} SET bundle_id = ?, last_seen = NOW() WHERE address = ?`,
-            [bundleId, key]
-        );
-        return { ok: true };
+    const [existing] = await pool.query(
+        `SELECT 1 FROM ${WATCHLIST_TABLE} WHERE owner_address = ? AND watched_address = ?`,
+        [owner, key]
+    );
+    if (existing.length) {
+        return { ok: false, reason: 'already-watched' };
     }
 
     await pool.query(
-        `INSERT INTO ${BUNDLE_TABLE} (address, bundle_id, first_seen, last_seen)
-         VALUES (?, ?, NOW(), NOW())`,
-        [key, bundleId]
+        `INSERT INTO ${WATCHLIST_TABLE} (owner_address, watched_address, added_at)
+         VALUES (?, ?, NOW())`,
+        [owner, key]
     );
+
+    // Registers it for daily snapshots and reward backfill. Idempotent, so an
+    // address several people follow is still only tracked once.
+    await touchAccount(pool, key);
+
     return { ok: true };
 }
 
 /**
- * Remove `target` from the caller's bundle, giving it a fresh bundle of its own
- * rather than deleting it -- its snapshot history stays, and it can still sign
- * in by itself.
+ * Stop following `target`. Only the list entry goes; the address itself stays
+ * registered, keeps its snapshot history, and is untouched for anyone else
+ * following it.
  *
- * Removing yourself is refused: it would leave the session holding a token for
- * an address outside the bundle it is looking at.
+ * Removing yourself is refused: the signed-in address is the account, not an
+ * entry in its own list.
  */
-async function unlinkAddress(pool, address, target) {
+async function removeWatchedAddress(pool, address, target) {
     const owner = canonical(address);
     const key = canonical(target);
 
@@ -128,16 +134,15 @@ async function unlinkAddress(pool, address, target) {
         return { ok: false, reason: 'cannot-remove-self' };
     }
 
-    const bundleId = await getBundleId(pool, owner);
-    const targetBundle = await getBundleId(pool, key);
-    if (!bundleId || bundleId !== targetBundle) {
-        return { ok: false, reason: 'not-in-bundle' };
+    const [result] = await pool.query(
+        `DELETE FROM ${WATCHLIST_TABLE} WHERE owner_address = ? AND watched_address = ?`,
+        [owner, key]
+    );
+
+    if (!result.affectedRows) {
+        return { ok: false, reason: 'not-watched' };
     }
 
-    await pool.query(
-        `UPDATE ${BUNDLE_TABLE} SET bundle_id = ? WHERE address = ?`,
-        [randomBytes(16).toString('hex'), key]
-    );
     return { ok: true };
 }
 
@@ -416,9 +421,10 @@ module.exports = {
     getExternalRewards,
     getBackfillState,
     touchAccount,
-    getBundleAddresses,
-    linkAddress,
-    unlinkAddress,
+    getPortfolioAddresses,
+    addWatchedAddress,
+    removeWatchedAddress,
+    MAX_WATCHED,
     getSnapshots,
     writeSnapshot,
     getSnapshotTargets,

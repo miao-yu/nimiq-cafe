@@ -1,7 +1,7 @@
 import type { CardProps } from '@mui/material/Card';
 import type { IPortfolioAccount } from 'src/types/portfolio';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -12,6 +12,7 @@ import TableRow from '@mui/material/TableRow';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
+import TextField from '@mui/material/TextField';
 import CardHeader from '@mui/material/CardHeader';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
@@ -21,9 +22,7 @@ import TableContainer from '@mui/material/TableContainer';
 import { fShortenNumber } from 'src/utils/format-number';
 import { fShortenString } from 'src/utils/format-blockchain';
 
-import { signerNow } from 'src/lib/nimiq-provider';
 import { addPortfolioAddress, removePortfolioAddress } from 'src/actions/portfolio';
-import { takeChallenge, fetchChallenge, primeChallenge } from 'src/lib/nimiq-challenge';
 
 import { Iconify } from 'src/components/iconify';
 
@@ -38,11 +37,16 @@ type Props = CardProps & {
 };
 
 /**
- * The addresses in this bundle, and the controls to change it.
+ * The addresses this portfolio covers, and the controls to change it.
  *
- * Adding requires signing with the address being added -- that signature is
- * the whole authorisation, which is why there is no "enter an address" field
- * here. You cannot add an address you do not control.
+ * Adding one takes no signature. Balances and rewards are public chain data and
+ * this page only reads them, so demanding a wallet unlock per address bought
+ * friction rather than safety -- which is why there is an "enter an address"
+ * field here now.
+ *
+ * The consequence is that following claims nothing about who controls an
+ * address, so the list has to be one-way: an address you follow shows up in
+ * your portfolio, and yours never shows up in its.
  */
 export function PortfolioAccounts({
   title,
@@ -56,33 +60,18 @@ export function PortfolioAccounts({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  // Fetched before the button is pressed, so the wallet can be opened from
-  // inside the click itself -- see nimiq-challenge.ts.
-  useEffect(() => {
-    primeChallenge();
-  }, []);
+  const [input, setInput] = useState('');
 
   const handleAdd = async () => {
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
-      // Same rule as sign-in: nothing awaited before the wallet opens, or iOS
-      // refuses the popup. The challenge was primed on mount.
-      const signer = signerNow();
-      const challenge = takeChallenge() ?? (await fetchChallenge());
-      // The wallet decides which address signs. In a browser that is a picker;
-      // inside Nimiq Pay it is the active account.
-      const signed = await signer.sign(challenge.message);
+      // The server parses and checksums it, and hands back the canonical
+      // spacing -- so whatever was pasted, what lands here is the real form.
+      const added = await addPortfolioAddress(input);
 
-      const added = await addPortfolioAddress({
-        code: challenge.code,
-        publicKey: signed.publicKey,
-        signature: signed.signature,
-        signer: signed.signer,
-      });
-
+      setInput('');
       setNotice(`Added ${fShortenString(added)}.`);
       onChanged();
     } catch (err: any) {
@@ -105,22 +94,37 @@ export function PortfolioAccounts({
 
   return (
     <Card sx={sx} {...other}>
-      <CardHeader
-        title={title}
-        subheader={subheader}
-        action={
-          <LoadingButton
-            size="small"
-            variant="outlined"
-            color="inherit"
-            loading={busy}
-            onClick={handleAdd}
-            startIcon={<Iconify icon="mingcute:add-line" />}
-          >
-            Add address
-          </LoadingButton>
-        }
-      />
+      <CardHeader title={title} subheader={subheader} />
+
+      {/* Paste and add. No wallet, no signature -- see actions/portfolio.ts. */}
+      <Box sx={{ px: 3, pt: 2, gap: 1.5, display: 'flex', alignItems: 'flex-start' }}>
+        <TextField
+          fullWidth
+          size="small"
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && input.trim() && !busy) {
+              handleAdd();
+            }
+          }}
+          placeholder="NQ07 U2Y4 HV3H 9NVL HVQQ UYEY 339S AREB 415Q"
+          slotProps={{ htmlInput: { spellCheck: false, autoCapitalize: 'characters' } }}
+        />
+
+        <LoadingButton
+          size="medium"
+          variant="outlined"
+          color="inherit"
+          loading={busy}
+          disabled={!input.trim()}
+          onClick={handleAdd}
+          startIcon={<Iconify icon="mingcute:add-line" />}
+          sx={{ flexShrink: 0 }}
+        >
+          Add
+        </LoadingButton>
+      </Box>
 
       {(error || notice) && (
         <Box sx={{ px: 3, pt: 2 }}>
@@ -193,7 +197,8 @@ export function PortfolioAccounts({
       </TableContainer>
 
       <Typography variant="caption" sx={{ display: 'block', px: 3, py: 2, color: 'text.secondary' }}>
-        Addresses here can see each other. Signing in with any of them shows this same portfolio.
+        Following an address is one-way and needs no signature: it counts towards your total
+        here, and your portfolio never appears in its.
       </Typography>
     </Card>
   );

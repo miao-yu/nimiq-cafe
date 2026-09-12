@@ -46,17 +46,13 @@ export function useGetPortfolio() {
 // ----------------------------------------------------------------------
 
 /**
- * Add another address. Control of it is proved the same way signing in is --
- * the caller signs a server-issued challenge with the address being added --
- * so this takes an already-signed payload rather than doing the signing here.
+ * Follow another address. No signature: balances and rewards are public chain
+ * data and this page only reads them, so proving control bought friction rather
+ * than safety. Returns the address in its canonical spacing, as the server
+ * parsed it.
  */
-export async function addPortfolioAddress(signed: {
-  code: string;
-  publicKey: string;
-  signature: string;
-  signer: string;
-}): Promise<string> {
-  const res = await axios.post(endpoints.portfolio.addresses, signed);
+export async function addPortfolioAddress(address: string): Promise<string> {
+  const res = await axios.post(endpoints.portfolio.addresses, { address });
   return res.data.address;
 }
 

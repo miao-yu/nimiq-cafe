@@ -171,7 +171,7 @@ export function PortfolioView() {
 
       <PortfolioAccounts
         title="Addresses"
-        subheader="Add another address by signing with it"
+        subheader="Paste any address to follow it — no signature needed"
         accounts={portfolio.accounts}
         signedInAddress={portfolio.signedInAddress}
         onChanged={() => refreshPortfolio()}
