@@ -88,7 +88,15 @@ export type PortfolioTier = 1 | 2 | 3;
 
 export type IPortfolio = {
   signedInAddress: string;
+  /** The addresses these figures cover: one when scoped, otherwise all of them. */
   addresses: string[];
+  /**
+   * Every address on the account, whatever the current scope. The selector
+   * needs its full list of options even while showing a single address.
+   */
+  allAddresses: string[];
+  /** The address being shown alone, or null for the combined total. */
+  scopedTo: string | null;
   tier: PortfolioTier;
   accounts: IPortfolioAccount[];
   totals: {

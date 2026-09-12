@@ -12,6 +12,7 @@ import { DashboardContent } from 'src/layouts/dashboard';
 import { EmptyContent } from 'src/components/empty-content';
 
 import { PortfolioStat } from '../portfolio-stat';
+import { PortfolioScope } from '../portfolio-scope';
 import { PortfolioValue } from '../portfolio-value';
 import { PortfolioPitch } from '../portfolio-pitch';
 import { PortfolioRewards } from '../portfolio-rewards';
@@ -27,7 +28,12 @@ import type { PortfolioRange } from '../portfolio-range';
 const nim = formatNimShort;
 
 export function PortfolioView() {
-  const { portfolio, portfolioLoading, portfolioError, refreshPortfolio } = useGetPortfolio();
+  // null is the combined total, which is what the page opens on.
+  const [scope, setScope] = useState<string | null>(null);
+
+  const { portfolio, portfolioLoading, portfolioError, refreshPortfolio } = useGetPortfolio(
+    scope ?? undefined
+  );
 
   // Owned here rather than by the chart: Balance Change and Rewards are read
   // against the same window, and two sources of truth for "which range" is how
@@ -66,13 +72,40 @@ export function PortfolioView() {
 
   return (
     <DashboardContent maxWidth={false}>
-      <Typography variant="h2" component="h1" sx={{ mb: 1 }}>
-        Portfolio
-      </Typography>
+      <Box
+        sx={{
+          mb: 1,
+          gap: 2,
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <Typography variant="h2" component="h1">
+          Portfolio
+        </Typography>
+
+        {/* Reads allAddresses, not addresses: the latter is already narrowed
+            when a single address is selected, which would leave the control
+            with nothing to switch back to. */}
+        <PortfolioScope
+          addresses={portfolio.allAddresses ?? portfolio.addresses}
+          // Local state, not the response's scopedTo. SWR keeps serving the
+          // previous data while the new scope is in flight, so reading the
+          // value back from the server would make the control snap to its old
+          // address for a moment after every switch.
+          value={scope}
+          onChange={setScope}
+        />
+      </Box>
+
       <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
-        {portfolio.addresses.length === 1
-          ? 'Everything held by the address you signed in with.'
-          : `Everything held across your ${portfolio.addresses.length} addresses.`}
+        {portfolio.scopedTo
+          ? 'Held by this address alone.'
+          : (portfolio.allAddresses ?? portfolio.addresses).length === 1
+            ? 'Everything held by the address you signed in with.'
+            : `Everything held across your ${(portfolio.allAddresses ?? portfolio.addresses).length} addresses.`}
       </Typography>
 
       {/* Fiat leads, NIM sits under it. Total and Staked read current chain

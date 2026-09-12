@@ -571,16 +571,53 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
             console.error('touchAccount failed:', error.message);
         }
 
-        let addresses = [signedInAddress];
+        let allAddresses = [signedInAddress];
         try {
-            addresses = await portfolio.getPortfolioAddresses(pool, signedInAddress);
+            allAddresses = await portfolio.getPortfolioAddresses(pool, signedInAddress);
         } catch (error) {
             // A missing watchlist must not blank the page -- fall back to the
             // one address the token proves.
             console.error('getPortfolioAddresses failed:', error.message);
         }
 
-        const accounts = await Promise.all(addresses.map(portfolioAccount));
+        // ?address=NQ... narrows every figure below to a single address.
+        //
+        // Scoped here rather than in the browser because the alternative is
+        // shipping a series per address: ~280 snapshot points and ~350 reward
+        // days each, which at the 20-address cap is a several-hundred-kB
+        // response. That is the mistake the inlined validator logos were, and
+        // the default view should not pay for a control most people never
+        // touch. One small request per switch instead, cached per address.
+        //
+        // Only an address already on this account is accepted. The data is
+        // public either way, but a portfolio endpoint that answers for
+        // arbitrary addresses is a different thing from this one.
+        let scopedTo = null;
+        if (typeof req.query.address === 'string' && req.query.address.trim()) {
+            const wanted = portfolio.canonical(req.query.address);
+
+            if (!allAddresses.includes(wanted)) {
+                return res.status(400).json({ message: 'That address is not in your portfolio.' });
+            }
+
+            scopedTo = wanted;
+        }
+
+        const addresses = scopedTo ? [scopedTo] : allAddresses;
+
+        // Always every address. This is what the Addresses table renders and
+        // manages, and it must not collapse to a single row just because the
+        // figures above it are scoped to one address. No extra cost either --
+        // these chain reads already ran for every address before scoping
+        // existed.
+        const allAccounts = await Promise.all(allAddresses.map(portfolioAccount));
+
+        // The subset the figures cover. Everything below -- totals, tier,
+        // history, rewards, pitch -- is derived from this, so narrowing it here
+        // is the whole of what scoping does.
+        const accounts = scopedTo
+            ? allAccounts.filter((account) => account.address === scopedTo)
+            : allAccounts;
 
         const totals = accounts.reduce((sum, account) => ({
             liquid: sum.liquid + account.liquid,
@@ -715,9 +752,15 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
 
         res.json({
             signedInAddress,
+            // What these figures cover: one address when scoped, otherwise all.
             addresses,
+            // Every address on the account regardless of scoping. The selector
+            // needs its options even while it is showing just one of them.
+            allAddresses,
+            scopedTo,
             tier,
-            accounts,
+            // Account-wide on purpose, unlike everything else here.
+            accounts: allAccounts,
             totals,
             // getPriceInfo returns the last 25 points, oldest first; the
             // portfolio only needs the current one.
@@ -743,9 +786,10 @@ app.get('/api/portfolio', authenticateToken, async function(req, res) {
 });
 
 /**
- * Add another address to the bundle. Proving control of it is the whole
- * authorisation: the caller signs a challenge with the address being added, so
- * this reuses the sign-in machinery rather than inventing a second one.
+ * Follow another address.
+ *
+ * No signature. See portfolio.addWatchedAddress for why proving control bought
+ * friction rather than safety, and why the list it adds to only works one way.
  */
 app.post('/api/portfolio/addresses', authenticateToken, async function(req, res) {
     const { address } = req.body;

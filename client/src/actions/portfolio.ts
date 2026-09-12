@@ -16,8 +16,18 @@ const swrOptions: SWRConfiguration = {
 
 // ----------------------------------------------------------------------
 
-export function useGetPortfolio() {
-  const url = endpoints.portfolio.root;
+/**
+ * @param address Show only this address. Undefined for the combined total.
+ *
+ * The address is part of the SWR key, so each scope is fetched once and then
+ * served from cache -- switching back to a view already seen is instant, and
+ * the default total never carries the per-address series it would otherwise
+ * need. See the scoping note in GET /api/portfolio.
+ */
+export function useGetPortfolio(address?: string) {
+  const url = address
+    ? `${endpoints.portfolio.root}?address=${encodeURIComponent(address)}`
+    : endpoints.portfolio.root;
 
   const { data, isLoading, error, isValidating, mutate } = useSWR<IPortfolio>(url, fetcher, {
     ...swrOptions,
