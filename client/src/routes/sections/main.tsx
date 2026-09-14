@@ -5,6 +5,7 @@ import { Outlet, Navigate } from 'react-router';
 
 import { CONFIG } from 'src/global-config';
 import { DashboardLayout } from 'src/layouts/dashboard';
+import { isMiniApp, MiniAppLayout } from 'src/layouts/mini-app';
 
 import { LoadingScreen } from 'src/components/loading-screen';
 
@@ -56,13 +57,25 @@ function RootRedirect() {
   return <Navigate to={authenticated ? '/portfolio' : '/network'} replace />;
 }
 
-const mainLayout = () => (
-  <DashboardLayout>
-    <Suspense fallback={<LoadingScreen />}>
-      <Outlet />
-    </Suspense>
-  </DashboardLayout>
-);
+/**
+ * One shell or the other, decided once.
+ *
+ * Inside Nimiq Pay the dashboard layout reads as what it is -- an admin
+ * template with a sidebar and a desktop header -- so that context gets a phone
+ * shell instead. Ordinary browsers are untouched: the website keeps its
+ * navigation, its density and its indexable pages.
+ */
+const mainLayout = () => {
+  const Shell = isMiniApp() ? MiniAppLayout : DashboardLayout;
+
+  return (
+    <Shell>
+      <Suspense fallback={<LoadingScreen />}>
+        <Outlet />
+      </Suspense>
+    </Shell>
+  );
+};
 
 export const mainRoutes: RouteObject[] = [
   {
