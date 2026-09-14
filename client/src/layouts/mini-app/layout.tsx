@@ -4,6 +4,7 @@ import { useBoolean } from 'minimal-shared/hooks';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
+import GlobalStyles from '@mui/material/GlobalStyles';
 import BottomNavigation from '@mui/material/BottomNavigation';
 import BottomNavigationAction from '@mui/material/BottomNavigationAction';
 
@@ -11,12 +12,15 @@ import { paths } from 'src/routes/paths';
 import { usePathname } from 'src/routes/hooks';
 
 import { Iconify } from 'src/components/iconify';
+import { useSettingsContext } from 'src/components/settings';
 
 import { useAuthContext } from 'src/auth/hooks';
 
 import { NavMobile } from '../dashboard/nav-mobile';
+import { layoutSectionVars } from '../core/css-vars';
 import { SignInButton } from '../components/sign-in-button';
 import { AccountDrawer } from '../components/account-drawer';
+import { dashboardNavColorVars } from '../dashboard/css-vars';
 import { navData as dashboardNavData } from '../nav-config-dashboard';
 
 // ----------------------------------------------------------------------
@@ -62,6 +66,15 @@ export function MiniAppLayout({ children }: Props) {
   const navigate = useNavigate();
   const { user } = useAuthContext();
 
+  // NavMobile takes its width and background from variables that LayoutSection
+  // injects onto <body>. This shell renders no LayoutSection, so without these
+  // the More drawer came out 75px wide and transparent -- measured in a real
+  // browser against the website shell's 288px, solid drawer at the same
+  // viewport. Onto <body> rather than this component's root, because the
+  // drawer is portaled there and would never see a variable set on it.
+  const settings = useSettingsContext();
+  const navVars = dashboardNavColorVars(theme, settings.state.navColor, settings.state.navLayout);
+
   const { value: open, onFalse: onClose, onTrue: onOpen } = useBoolean();
 
   // -1 when the current page is not one of the tabs, which leaves all three
@@ -85,6 +98,10 @@ export function MiniAppLayout({ children }: Props) {
         '--layout-dashboard-content-pb': `calc(${theme.spacing(3)} + ${NAV_HEIGHT}px + env(safe-area-inset-bottom))`,
       }}
     >
+      {/* The same set LayoutSection puts on <body>. Renders no element of its
+          own -- it only inserts styles -- so it can sit anywhere in the tree. */}
+      <GlobalStyles styles={{ body: { ...layoutSectionVars(theme), ...navVars.layout } }} />
+
       <Box component="main" sx={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column' }}>
         {children}
       </Box>
